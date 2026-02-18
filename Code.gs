@@ -17,6 +17,7 @@ function doGet() {
   const items = getItemsCached_();
   const tpl = HtmlService.createTemplateFromFile('Index');
   tpl.itemsJson = safeJson_(items);
+  tpl.buildId = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd HH:mm:ss");
 
   return tpl.evaluate()
     .setTitle('Сказки')
@@ -80,18 +81,15 @@ function getItems_() {
 // Naming convention support: "Book Title. Chapter 1-3.mp3"
 function parseBook_(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
-  const dot = base.indexOf('.');
-  if (dot > 0) return base.slice(0, dot).trim();
+  const m = base.match(/^(.+?)\.\s+(.+)$/);
+  if (m) return m[1].trim();
   return 'Сказки';
 }
 
 function parseTitle_(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
-  const dot = base.indexOf('.');
-  if (dot > 0) {
-    const t = base.slice(dot + 1).trim();
-    return t || base;
-  }
+  const m = base.match(/^(.+?)\.\s+(.+)$/);
+  if (m) return m[2].trim() || base;
   return base;
 }
 
@@ -100,5 +98,7 @@ function safeJson_(obj) {
   return JSON.stringify(obj)
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026');
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
 }

@@ -92,12 +92,11 @@
       <button id="fwd30" title="+30 секунд">↻ +30с</button>
 
       <a class="btn" id="openDrive" href="#" target="_blank" rel="noopener">Открыть в Drive</a>
-      <a class="btn" id="download" href="#" download>Скачать</a>
-
       <span class="pill" id="status">готово</span>
     </div>
 
     <div class="meta" id="hint"></div>
+    <div class="meta" id="buildInfo">build: <?= buildId ?></div>
 
     <div class="debug" id="debugBox">
       <div class="meta"><b>Debug</b> (toggle in CONFIG)</div>
@@ -108,244 +107,263 @@
   <div class="list" id="list"></div>
 </div>
 
+<script id="itemsData" type="application/json"><?!= itemsJson ?></script>
 <script>
-  /**
-   * =========================
-   * CONFIG (tuning knobs)
-   * =========================
-   */
-  const CONFIG = {
-    pageTitle: 'Сказки',
+  (function () {
+    var logs = [];
+    function push(msg) {
+      try {
+        var line = '[boot] ' + msg;
+        logs.push(line);
+        if (window.console && console.log) console.log(line);
+      } catch (e) { /* ignore */ }
+    }
+    window.__BOOT_LOGS = logs;
+    window.__bootLog = push;
 
-    // Playback behavior
-    autoplayOnSelect: true,        // when user clicks an item
-    autoplayFirstItem: false,       // when page loads (often blocked on mobile)
+    window.addEventListener('error', function (ev) {
+      var msg = ev && ev.message ? ev.message : 'unknown error';
+      var src = ev && ev.filename ? ev.filename : 'no-file';
+      var ln = ev && ev.lineno ? ev.lineno : 0;
+      push('window.error: ' + msg + ' @ ' + src + ':' + ln);
+    });
+
+    window.addEventListener('unhandledrejection', function (ev) {
+      var reason = ev && ev.reason ? String(ev.reason) : 'unknown rejection';
+      push('unhandledrejection: ' + reason);
+    });
+
+    push('bootstrap loaded; build=<?= buildId ?>');
+  })();
+</script>
+
+<script>
+  var CONFIG = {
+    pageTitle: 'Сказки',
+    autoplayOnSelect: true,
+    autoplayFirstItem: false,
     autoNextOnEnded: true,
-    rememberPosition: true,         // store per-track position in localStorage
-    rememberPositionMinSeconds: 8,  // don't store tiny positions
+    rememberPosition: true,
+    rememberPositionMinSeconds: 8,
     seekBackSeconds: 10,
     seekForwardSeconds: 30,
-
-    // UI behavior
     groupByBook: true,
     showCreatedAt: true,
     showDriveLinkInList: true,
-    showDownloadLinkInList: true,
+    showDownloadLinkInList: false,
     showEpisodeNumber: true,
-
-    // Reliability / UX
-    setAudioTypeHints: true,        // try to set <source type="..."> based on extension
-    preferDirectUrl: true,          // use it.url from backend (Drive uc? link)
+    episodeNumberMode: 'perBook',
     fallbackToDriveViewOnError: true,
-
-    // Diagnostics
-    debug: false,                   // set true to show debug panel
-    logToConsole: false,            // noisy; use when debugging playback issues
+    debug: false,
+    logToConsole: false
   };
 
-  /**
-   * =========================
-   * DATA (injected from Apps Script)
-   * =========================
-   * itemsJson must be safeJson_() from Code.gs (it replaces "<" etc.)
-   */
-  const ITEMS = JSON.parse('<?!= itemsJson ?>');
+  function isDebugEnabled() {
+    var q = String(window.location.search || '');
+    return q.indexOf('debug=1') >= 0;
+  }
+  if (isDebugEnabled()) {
+    CONFIG.debug = true;
+    CONFIG.logToConsole = true;
+  }
 
-  /**
-   * =========================
-   * STATE
-   * =========================
-   */
-  const state = {
-    flat: [],          // flattened playlist (in rendering order)
-    currentIndex: -1,
-    isUserGesture: false, // helps explain autoplay restrictions
-  };
+  function parseItemsFromDom() {
+    if (window.__bootLog) window.__bootLog('parseItemsFromDom:start');
+    try {
+      var node = document.getElementById('itemsData');
+      var raw = node ? node.textContent : '[]';
+      if (window.__bootLog) window.__bootLog('itemsData chars=' + (raw ? raw.length : 0));
+      var parsed = JSON.parse(raw || '[]');
+      if (window.__bootLog) window.__bootLog('parseItemsFromDom:ok items=' + (parsed && parsed.length ? parsed.length : 0));
+      return Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [];
+    } catch (e) {
+      console.error('Failed to parse itemsJson', e);
+      if (window.__bootLog) window.__bootLog('parseItemsFromDom:error ' + (e && e.message ? e.message : String(e)));
+      return [];
+    }
+  }
 
-  /**
-   * =========================
-   * DOM
-   * =========================
-   */
-  const $ = (id) => document.getElementById(id);
+  var ITEMS = parseItemsFromDom();
+  var state = { flat: [], currentIndex: -1, isUserGesture: false, candidateUrls: [], candidateIndex: 0 };
 
-  const audio = $('audio');
-  const now = $('now');
-  const hint = $('hint');
-  const listEl = $('list');
-  const statusEl = $('status');
+  function $(id) { return document.getElementById(id); }
+  var audio = $('audio');
+  var now = $('now');
+  var hint = $('hint');
+  var listEl = $('list');
+  var statusEl = $('status');
+  var btnPrev = $('prev');
+  var btnNext = $('next');
+  var btnBack = $('back10');
+  var btnFwd = $('fwd30');
+  var openDrive = $('openDrive');
+  var debugBox = $('debugBox');
+  var debugOut = $('debugOut');
 
-  const btnPrev = $('prev');
-  const btnNext = $('next');
-  const btnBack = $('back10');
-  const btnFwd = $('fwd30');
-
-  const openDrive = $('openDrive');
-  const download = $('download');
-
-  const debugBox = $('debugBox');
-  const debugOut = $('debugOut');
-
-  /**
-   * =========================
-   * Utilities
-   * =========================
-   */
-  function log(...args) {
-    if (CONFIG.logToConsole) console.log('[stories]', ...args);
+  function log() {
+    var args = Array.prototype.slice.call(arguments);
+    if (CONFIG.logToConsole && console && console.log) console.log.apply(console, ['[stories]'].concat(args));
+    if (window.__BOOT_LOGS) {
+      try {
+        var compact = [];
+        for (var i = 0; i < args.length; i++) compact.push(typeof args[i] === 'string' ? args[i] : JSON.stringify(args[i]));
+        window.__BOOT_LOGS.push('[stories] ' + compact.join(' '));
+      } catch (e) {}
+    }
     if (CONFIG.debug) {
-      const msg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a, null, 2))).join(' ');
-      debugOut.textContent = (debugOut.textContent + '\n' + msg).trim();
+      var msg = [];
+      for (var j = 0; j < args.length; j++) msg.push(typeof args[j] === 'string' ? args[j] : JSON.stringify(args[j], null, 2));
+      debugOut.textContent = (debugOut.textContent + '\n' + msg.join(' ')).trim();
     }
   }
 
-  function setStatus(text) {
-    statusEl.textContent = text;
-  }
+  function setStatus(text) { statusEl.textContent = text; }
+  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+  function safeText(s) { return (s == null) ? '' : String(s); }
 
-  function clamp(n, min, max) {
-    return Math.max(min, Math.min(max, n));
-  }
-
-  function safeText(s) {
-    // ensure we always work with strings
-    return (s == null) ? '' : String(s);
-  }
-
-  function getExt(name) {
-    const m = safeText(name).toLowerCase().match(/\.([a-z0-9]+)$/);
-    return m ? m[1] : '';
-  }
-
-  function guessMimeByExt(ext) {
-    // minimal hints for <audio> sources; not always required
-    switch (ext) {
-      case 'mp3': return 'audio/mpeg';
-      case 'ogg': return 'audio/ogg';
-      case 'm4a': return 'audio/mp4';
-      default: return '';
+  function buildPlaybackCandidates(track) {
+    var out = [];
+    if (track && track.url) out.push(track.url);
+    if (track && track.id) {
+      out.push('https://drive.google.com/uc?export=download&id=' + track.id);
+      out.push('https://drive.google.com/uc?export=open&id=' + track.id);
     }
+    var uniq = [];
+    var seen = {};
+    for (var i = 0; i < out.length; i++) {
+      var u = out[i];
+      if (!u || seen[u]) continue;
+      seen[u] = true;
+      uniq.push(u);
+    }
+    return uniq;
   }
 
   function storageKeyForTrack(track) {
-    // keep stable across reloads
-    // Prefer Drive file id if present, otherwise fallback to url
-    return track && (track.id ? `pos:${track.id}` : `pos:${track.url}`);
+    return track && (track.id ? 'pos:' + track.id : 'pos:' + track.url);
   }
-
   function loadSavedPosition(track) {
     if (!CONFIG.rememberPosition) return 0;
     try {
-      const key = storageKeyForTrack(track);
-      const raw = localStorage.getItem(key);
-      const val = raw ? Number(raw) : 0;
-      return Number.isFinite(val) ? val : 0;
-    } catch {
-      return 0;
-    }
+      var key = storageKeyForTrack(track);
+      var raw = localStorage.getItem(key);
+      var val = raw ? Number(raw) : 0;
+      return isFinite(val) ? val : 0;
+    } catch (e) { return 0; }
   }
-
   function savePosition(track, seconds) {
     if (!CONFIG.rememberPosition) return;
-    if (!Number.isFinite(seconds)) return;
+    if (!isFinite(seconds)) return;
     if (seconds < CONFIG.rememberPositionMinSeconds) return;
-
     try {
-      const key = storageKeyForTrack(track);
+      var key = storageKeyForTrack(track);
       localStorage.setItem(key, String(seconds));
-    } catch { /* ignore */ }
+    } catch (e) {}
   }
-
   function clearPosition(track) {
     if (!CONFIG.rememberPosition) return;
     try {
-      const key = storageKeyForTrack(track);
+      var key = storageKeyForTrack(track);
       localStorage.removeItem(key);
-    } catch { /* ignore */ }
+    } catch (e) {}
   }
 
-  /**
-   * =========================
-   * Playback
-   * =========================
-   */
   function updateNavButtons() {
     btnPrev.disabled = !(state.currentIndex > 0);
     btnNext.disabled = !(state.currentIndex >= 0 && state.currentIndex + 1 < state.flat.length);
   }
 
   function highlightActive() {
-    document.querySelectorAll('.item').forEach(x => x.classList.remove('active'));
-    const el = document.querySelector(`.item[data-idx="${state.currentIndex}"]`);
+    var nodes = document.querySelectorAll('.item');
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('active');
+    var el = document.querySelector('.item[data-idx="' + state.currentIndex + '"]');
     if (el) el.classList.add('active');
   }
 
-  async function tryPlay() {
+  function tryPlay() {
     try {
-      await audio.play();
-      setStatus('играет');
+      var p = audio.play();
+      if (p && typeof p.then === 'function') {
+        p.then(function () { setStatus('играет'); }).catch(function (e) {
+          setStatus('нажми Play');
+          log('play() blocked or failed:', e && e.message ? e.message : e);
+        });
+      } else {
+        setStatus('играет');
+      }
     } catch (e) {
-      // Autoplay may be blocked without a gesture
       setStatus('нажми Play');
-      log('play() blocked or failed:', e && e.message ? e.message : e);
+      log('play() failed:', e && e.message ? e.message : e);
     }
   }
 
-  function setCurrent(index, opts = {}) {
-    const { autoplay = CONFIG.autoplayOnSelect } = opts;
+  function setAudioSource(url) {
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.innerHTML = '';
+    audio.src = url;
+    audio.load();
+  }
+  function currentCandidateUrl() {
+    return state.candidateUrls[state.candidateIndex] || '';
+  }
+  function tryNextCandidate(autoplay) {
+    if (state.candidateIndex + 1 >= state.candidateUrls.length) return false;
+    state.candidateIndex += 1;
+    setStatus('пробуем другой URL...');
+    hint.textContent = 'Источник ' + (state.candidateIndex + 1) + '/' + state.candidateUrls.length;
+    setAudioSource(currentCandidateUrl());
+    if (autoplay) {
+      var onCanPlay = function () {
+        audio.removeEventListener('canplay', onCanPlay);
+        tryPlay();
+      };
+      audio.addEventListener('canplay', onCanPlay);
+    }
+    return true;
+  }
+
+  function setCurrent(index, autoplay) {
+    if (typeof autoplay === 'undefined') autoplay = CONFIG.autoplayOnSelect;
     if (index < 0 || index >= state.flat.length) return;
 
     state.currentIndex = index;
-    const t = state.flat[index];
-
+    var t = state.flat[index];
     now.textContent = t.displayTitle;
-    hint.textContent = CONFIG.showCreatedAt && t.createdStr ? `Загружено: ${t.createdStr}` : '';
-
+    hint.textContent = (CONFIG.showCreatedAt && t.createdStr) ? ('Загружено: ' + t.createdStr) : '';
     openDrive.href = t.viewUrl || '#';
-    download.href = t.url || '#';
 
-    // Build audio source reliably
     setStatus('загрузка...');
-    audio.pause();
-    audio.removeAttribute('src');
-    audio.innerHTML = ''; // clear sources
-
-    const ext = getExt(t.name || t.title || '');
-    const mime = CONFIG.setAudioTypeHints ? guessMimeByExt(ext) : '';
-
-    if (mime) {
-      const src = document.createElement('source');
-      src.src = t.url;
-      src.type = mime;
-      audio.appendChild(src);
-    } else {
-      // fallback
-      audio.src = t.url;
+    state.candidateUrls = buildPlaybackCandidates(t);
+    state.candidateIndex = 0;
+    if (!state.candidateUrls.length) {
+      setStatus('ошибка');
+      hint.textContent = 'Нет URL для воспроизведения.';
+      highlightActive();
+      updateNavButtons();
+      return;
     }
+    hint.textContent = 'Источник 1/' + state.candidateUrls.length + ((CONFIG.showCreatedAt && t.createdStr) ? (' • Загружено: ' + t.createdStr) : '');
+    setAudioSource(currentCandidateUrl());
 
-    // Restore saved position
-    const saved = loadSavedPosition(t);
-    // Wait for metadata to seek reliably
-    audio.onloadedmetadata = () => {
-      if (saved > 0 && Number.isFinite(audio.duration)) {
+    var saved = loadSavedPosition(t);
+    audio.onloadedmetadata = function () {
+      if (saved > 0 && isFinite(audio.duration)) {
         audio.currentTime = clamp(saved, 0, Math.max(0, audio.duration - 0.5));
-        log('restored position', saved);
       }
       if (autoplay) tryPlay();
       highlightActive();
       updateNavButtons();
     };
 
-    audio.onerror = () => {
+    audio.onerror = function () {
+      var err = audio.error ? ('code=' + audio.error.code) : 'unknown';
+      if (tryNextCandidate(autoplay)) return;
       setStatus('ошибка');
-      const err = audio.error ? `code=${audio.error.code}` : 'unknown';
-      log('audio error', err, { track: t });
-
-      // Optional fallback: open Drive view if playback fails
       if (CONFIG.fallbackToDriveViewOnError && t.viewUrl) {
-        hint.textContent = `Не проигрывается в браузере. Открой в Drive. (${err})`;
+        hint.textContent = 'Не проигрывается в браузере. Открой в Drive. (' + err + ')';
       } else {
-        hint.textContent = `Не проигрывается в браузере. (${err})`;
+        hint.textContent = 'Не проигрывается в браузере. (' + err + ')';
       }
     };
 
@@ -354,41 +372,36 @@
   }
 
   function next() {
-    if (state.currentIndex + 1 < state.flat.length) {
-      setCurrent(state.currentIndex + 1, { autoplay: true });
-    }
+    if (state.currentIndex + 1 < state.flat.length) setCurrent(state.currentIndex + 1, true);
   }
-
   function prev() {
-    if (state.currentIndex - 1 >= 0) {
-      setCurrent(state.currentIndex - 1, { autoplay: true });
-    }
+    if (state.currentIndex - 1 >= 0) setCurrent(state.currentIndex - 1, true);
   }
 
-  /**
-   * =========================
-   * Rendering (no innerHTML with user-controlled strings)
-   * =========================
-   */
   function groupItemsByBook(items) {
-    const map = new Map();
-    for (const it of items) {
-      const book = safeText(it.book || CONFIG.pageTitle);
-      if (!map.has(book)) map.set(book, []);
-      map.get(book).push(it);
+    var out = { order: [], map: {} };
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      var book = safeText(it.book || CONFIG.pageTitle);
+      if (!out.map[book]) {
+        out.map[book] = [];
+        out.order.push(book);
+      }
+      out.map[book].push(it);
     }
-    return map;
+    return out;
   }
 
   function makeEl(tag, className, text) {
-    const el = document.createElement(tag);
+    var el = document.createElement(tag);
     if (className) el.className = className;
     if (text != null) el.textContent = text;
     return el;
   }
 
-  function makeLink(text, href, opts = {}) {
-    const a = document.createElement('a');
+  function makeLink(text, href, opts) {
+    opts = opts || {};
+    var a = document.createElement('a');
     a.href = href || '#';
     a.textContent = text;
     if (opts.download) a.setAttribute('download', '');
@@ -398,7 +411,10 @@
     }
     if (opts.preventDefault) {
       a.href = '#';
-      a.addEventListener('click', (e) => { e.preventDefault(); opts.onClick && opts.onClick(e); });
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (opts.onClick) opts.onClick(e);
+      });
     } else if (opts.onClick) {
       a.addEventListener('click', opts.onClick);
     }
@@ -406,94 +422,87 @@
   }
 
   function render() {
+    if (window.__bootLog) window.__bootLog('render:start');
     $('pageTitle').textContent = CONFIG.pageTitle;
-    if (CONFIG.debug) debugBox.style.display = 'block';
+    if (CONFIG.debug) {
+      debugBox.style.display = 'block';
+      if (window.__BOOT_LOGS && window.__BOOT_LOGS.length) debugOut.textContent = window.__BOOT_LOGS.join('\n');
+    }
 
-    // Defensive normalization
-    const items = Array.isArray(ITEMS) ? ITEMS : [];
+    var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
+    if (window.__bootLog) window.__bootLog('render:items=' + items.length);
     state.flat = [];
     listEl.innerHTML = '';
+    var containerFrag = document.createDocumentFragment();
 
-    const containerFrag = document.createDocumentFragment();
+    var grouped;
+    if (CONFIG.groupByBook) {
+      grouped = groupItemsByBook(items);
+    } else {
+      grouped = { order: [CONFIG.pageTitle], map: {} };
+      grouped.map[CONFIG.pageTitle] = items;
+    }
 
-    const byBook = CONFIG.groupByBook ? groupItemsByBook(items) : new Map([[CONFIG.pageTitle, items]]);
-
-    for (const [book, arr] of byBook.entries()) {
-      const block = makeEl('div', 'book');
-      const h2 = makeEl('h2', null, book);
+    for (var b = 0; b < grouped.order.length; b++) {
+      var book = grouped.order[b];
+      var arr = grouped.map[book] || [];
+      var block = makeEl('div', 'book');
+      var h2 = makeEl('h2', null, book);
       block.appendChild(h2);
 
-      for (const it of arr) {
-        const idx = state.flat.length;
+      for (var localIdx = 0; localIdx < arr.length; localIdx++) {
+        var it = arr[localIdx];
+        var idx = state.flat.length;
+        var perBookNumber = arr.length - localIdx;
+        var displayNumber = null;
+        if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
+        else if (CONFIG.episodeNumberMode === 'perBook') displayNumber = perBookNumber;
+        var numberPart = (CONFIG.showEpisodeNumber && displayNumber != null) ? ('#' + displayNumber + '. ') : '';
+        var title = safeText(it.title || it.name || 'Сказка');
+        var displayTitle = numberPart + title;
 
-        const numberPart = (CONFIG.showEpisodeNumber && it.number != null) ? `#${it.number}. ` : '';
-        const title = safeText(it.title || it.name || 'Сказка');
-        const displayTitle = `${numberPart}${title}`;
-
-        const track = {
-          ...it,
-          displayTitle,
-          // Keep original name for MIME guessing
-          name: it.name || it.title || '',
-          url: it.url,
-          viewUrl: it.viewUrl
-        };
-
+        var track = {};
+        for (var k in it) if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
+        track.displayTitle = displayTitle;
+        track.name = it.name || it.title || '';
+        track.url = it.url;
+        track.viewUrl = it.viewUrl;
         state.flat.push(track);
 
-        const itemEl = makeEl('div', 'item');
-        itemEl.dataset.idx = String(idx);
+        var itemEl = makeEl('div', 'item');
+        itemEl.setAttribute('data-idx', String(idx));
 
-        // row: title + created
-        const row = makeEl('div', 'row');
-
-        const titleEl = makeEl('div', 'title', displayTitle);
+        var row = makeEl('div', 'row');
+        var titleEl = makeEl('div', 'title', displayTitle);
         row.appendChild(titleEl);
-
-        const metaRight = makeEl('div', 'meta', CONFIG.showCreatedAt ? safeText(it.createdStr || '') : '');
+        var metaRight = makeEl('div', 'meta', CONFIG.showCreatedAt ? safeText(it.createdStr || '') : '');
         row.appendChild(metaRight);
-
         itemEl.appendChild(row);
 
-        // links
-        const links = makeEl('div', 'links');
-
-        links.appendChild(
-          makeLink('▶ Play', '#', {
+        var links = makeEl('div', 'links');
+        (function (capturedIdx) {
+          links.appendChild(makeLink('▶ Play', '#', {
             preventDefault: true,
-            onClick: () => setCurrent(idx, { autoplay: true })
-          })
-        );
+            onClick: function () { setCurrent(capturedIdx, true); }
+          }));
+          itemEl.addEventListener('click', function (e) {
+            var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'a') return;
+            setCurrent(capturedIdx, true);
+          });
+        })(idx);
 
-        if (CONFIG.showDownloadLinkInList && it.url) {
-          links.appendChild(makeLink('⬇ Скачать', it.url, { download: true }));
-        }
-
-        if (CONFIG.showDriveLinkInList && it.viewUrl) {
-          links.appendChild(makeLink('Drive', it.viewUrl, { newTab: true }));
-        }
-
+        if (CONFIG.showDownloadLinkInList && it.url) links.appendChild(makeLink('⬇ Скачать', it.url, { download: true }));
+        if (CONFIG.showDriveLinkInList && it.viewUrl) links.appendChild(makeLink('Drive', it.viewUrl, { newTab: true }));
         itemEl.appendChild(links);
-
-        // click on card selects too
-        itemEl.addEventListener('click', (e) => {
-          // ignore clicks on <a>
-          const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-          if (tag === 'a') return;
-          setCurrent(idx, { autoplay: true });
-        });
-
         block.appendChild(itemEl);
       }
-
       containerFrag.appendChild(block);
     }
 
     listEl.appendChild(containerFrag);
-
-    // initial track
     if (state.flat.length) {
-      setCurrent(0, { autoplay: CONFIG.autoplayFirstItem });
+      setCurrent(0, CONFIG.autoplayFirstItem);
       setStatus('готово');
     } else {
       setStatus('нет файлов');
@@ -501,59 +510,46 @@
     }
   }
 
-  /**
-   * =========================
-   * Event wiring
-   * =========================
-   */
   function wireEvents() {
-    // mark user gestures to improve autoplay success reasoning
-    ['click', 'touchstart', 'keydown'].forEach(evt => {
-      window.addEventListener(evt, () => { state.isUserGesture = true; }, { once: true, passive: true });
-    });
+    if (window.__bootLog) window.__bootLog('wireEvents:start');
+    var markGesture = function () {
+      state.isUserGesture = true;
+      window.removeEventListener('click', markGesture);
+      window.removeEventListener('touchstart', markGesture);
+      window.removeEventListener('keydown', markGesture);
+    };
+    window.addEventListener('click', markGesture);
+    window.addEventListener('touchstart', markGesture);
+    window.addEventListener('keydown', markGesture);
 
-    btnNext.addEventListener('click', () => next());
-    btnPrev.addEventListener('click', () => prev());
+    btnNext.addEventListener('click', function () { next(); });
+    btnPrev.addEventListener('click', function () { prev(); });
+    btnBack.addEventListener('click', function () { audio.currentTime = Math.max(0, (audio.currentTime || 0) - CONFIG.seekBackSeconds); });
+    btnFwd.addEventListener('click', function () { audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds; });
 
-    btnBack.addEventListener('click', () => {
-      audio.currentTime = Math.max(0, (audio.currentTime || 0) - CONFIG.seekBackSeconds);
-    });
-
-    btnFwd.addEventListener('click', () => {
-      audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds;
-    });
-
-    audio.addEventListener('ended', () => {
+    audio.addEventListener('ended', function () {
       setStatus('конец');
-      const t = state.flat[state.currentIndex];
+      var t = state.flat[state.currentIndex];
       if (t) clearPosition(t);
-
-      if (CONFIG.autoNextOnEnded) {
-        if (state.currentIndex + 1 < state.flat.length) {
-          next();
-        }
-      }
+      if (CONFIG.autoNextOnEnded && state.currentIndex + 1 < state.flat.length) next();
     });
-
-    audio.addEventListener('timeupdate', () => {
-      const t = state.flat[state.currentIndex];
+    audio.addEventListener('timeupdate', function () {
+      var t = state.flat[state.currentIndex];
       if (!t) return;
-      // throttle saves a bit
-      if (audio.currentTime && Math.floor(audio.currentTime) % 3 === 0) {
-        savePosition(t, audio.currentTime);
-      }
+      if (audio.currentTime && Math.floor(audio.currentTime) % 3 === 0) savePosition(t, audio.currentTime);
     });
-
-    audio.addEventListener('play', () => setStatus('играет'));
-    audio.addEventListener('pause', () => setStatus('пауза'));
-    audio.addEventListener('waiting', () => setStatus('буфер...'));
-    audio.addEventListener('stalled', () => setStatus('сеть...'));
-    audio.addEventListener('canplay', () => setStatus('готово'));
+    audio.addEventListener('play', function () { setStatus('играет'); });
+    audio.addEventListener('pause', function () { setStatus('пауза'); });
+    audio.addEventListener('waiting', function () { setStatus('буфер...'); });
+    audio.addEventListener('stalled', function () { setStatus('сеть...'); });
+    audio.addEventListener('canplay', function () { setStatus('готово'); });
   }
 
-  // Init
+  if (window.__bootLog) window.__bootLog('init:start');
   wireEvents();
+  if (window.__bootLog) window.__bootLog('init:events-wired');
   render();
+  if (window.__bootLog) window.__bootLog('init:render-done');
 </script>
 </body>
 </html>

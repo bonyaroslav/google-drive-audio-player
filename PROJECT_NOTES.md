@@ -39,18 +39,25 @@ Notes:
   - autoplay-on-select (best-effort), auto-next on ended
   - seek step buttons (e.g., -10s/+30s)
   - optional resume position via `localStorage`
+  - numbering mode: `episodeNumberMode` (`perBook` by default; also `backendGlobal`/`none`)
+  - download links in UI are disabled by default (`showDownloadLinkInList: false`; top-level Download button removed)
 - Defensive rendering:
   - avoid `innerHTML` for user-controlled strings; use DOM + `textContent`.
 - Reliability UX:
-  - on playback error, show message and provide “Open in Drive” fallback.
+  - on playback error, auto-try alternate Drive stream URLs (`uc?export=download` / `uc?export=open`), then show message and provide “Open in Drive” fallback.
+- Diagnostics:
+  - `?debug=1` in URL enables in-page debug panel and console logs at runtime.
+  - Early bootstrap logger (`window.__bootLog`) is initialized before main app script and captures `window.error` / `unhandledrejection`.
+  - UI shows `build` timestamp to verify the active Web App deployment version.
 
 ---
 
 ## 4) Backend behavior (Code.gs)
 - Reads files from Drive folder; filters `.mp3/.ogg/.m4a`.
 - Parses book/title from filename pattern:
-  - `Book. Title.ext`
-- Injects JSON into template using `safeJson_()` (escape for `<script>` context).
+  - strict split only by `Book. Title.ext` (dot + space). If pattern is absent, item falls back to default book and full base filename as title.
+- Injects JSON into template using `safeJson_()` (escape for `<script>` context, including `<`, `>`, `&`, `U+2028`, `U+2029`).
+- Frontend data path: parse `<script type="application/json" id="itemsData">`.
 - Optional caching:
   - `CacheService` with small TTL (e.g., 120s) to reduce Drive calls.
 
@@ -95,6 +102,11 @@ Android focus:
 ### 2026-02-18 — Escape JSON for template injection
 **Decision:** Use `safeJson_()` to escape JSON (`<`, `>`, `&`) before embedding in HTML template.  
 **Why:** Prevent breaking `<script>` context / injection.
+
+### 2026-02-18 — Parse `itemsJson` from JSON script tag
+**Decision:** Render `itemsJson` into `<script type="application/json" id="itemsData">` and parse from DOM text (`JSON.parse(textContent)`).  
+**Why:** Prevent frontend script parse failures from data edge cases while preserving the same `itemsJson` compatibility contract.  
+**Trade-off:** Slightly more DOM code in initialization.
 
 ### 2026-02-18 — Optional caching of Drive listing
 **Decision:** Use CacheService with short TTL (e.g., 60–300s).  
