@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Сказки</title>
+
+  <!--
+    Index.html (hardened / maintainable)
+    Goals:
+    - Single "CONFIG" section for tuning
+    - Defensive rendering (avoid innerHTML injection from filenames)
+    - Optional debug panel/logging
+    - Better playback UX: auto-next, resume position, seek buttons
+    - Clear separation: data -> state -> UI
+  -->
+
+  <style>
+    :root {
+      --maxWidth: 860px;
+      --radius: 12px;
+      --border: #ddd;
+      --borderSoft: #eee;
+      --textSoft: #666;
+      --bg: #fafafa;
+      --card: #fff;
+      --btnBorder: #ccc;
+      --shadow: 0 1px 2px rgba(0,0,0,.04);
+      --gap: 10px;
+      --pad: 12px;
+      --h1: 20px;
+      --h2: 18px;
+      --meta: 12px;
+    }
+
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 16px; background: var(--bg); }
+    .wrap { max-width: var(--maxWidth); margin: 0 auto; }
+    h1 { font-size: var(--h1); margin: 0 0 12px; }
+    .player { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--pad); background: var(--card); box-shadow: var(--shadow); }
+    .now { font-weight: 700; margin-bottom: 8px; }
+    audio { width: 100%; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    button, a.btn {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--btnBorder);
+      background: #fff;
+      text-decoration: none;
+      color: #000;
+      cursor: pointer;
+      user-select: none;
+    }
+    button[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .list { margin-top: 18px; }
+    .book { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--borderSoft); }
+    .book h2 { margin: 0 0 10px; font-size: var(--h2); }
+    .item { border: 1px solid var(--borderSoft); border-radius: var(--radius); padding: 10px; margin: 8px 0; background: var(--card); box-shadow: var(--shadow); }
+    .item.active { border-color: #999; }
+    .meta { font-size: var(--meta); color: var(--textSoft); margin-top: 6px; }
+    .row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+    .title { font-weight: 600; }
+    .links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+    .links a { font-size: 14px; }
+    .pill { font-size: 12px; color: var(--textSoft); border: 1px solid var(--borderSoft); padding: 2px 8px; border-radius: 999px; }
+
+    .debug {
+      margin-top: 12px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 10px;
+      background: #fff;
+      display: none;
+    }
+    .debug pre { margin: 8px 0 0; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <h1 id="pageTitle">Сказки</h1>
+
+  <div class="player">
+    <div class="now" id="now">Ничего не выбрано</div>
+
+    <audio id="audio" controls preload="metadata" playsinline></audio>
+
+    <div class="controls">
+      <button id="prev" title="Предыдущая сказка">◀ Предыдущая</button>
+      <button id="next" title="Следующая сказка">Следующая ▶</button>
+
+      <button id="back10" title="-10 секунд">↺ -10с</button>
+      <button id="fwd30" title="+30 секунд">↻ +30с</button>
+
+      <a class="btn" id="openDrive" href="#" target="_blank" rel="noopener">Открыть в Drive</a>
+      <a class="btn" id="download" href="#" download>Скачать</a>
+
+      <span class="pill" id="status">готово</span>
+    </div>
+
+    <div class="meta" id="hint"></div>
+
+    <div class="debug" id="debugBox">
+      <div class="meta"><b>Debug</b> (toggle in CONFIG)</div>
+      <pre id="debugOut"></pre>
+    </div>
+  </div>
+
+  <div class="list" id="list"></div>
+</div>
+
+<script>
+  /**
+   * =========================
+   * CONFIG (tuning knobs)
+   * =========================
+   */
+  const CONFIG = {
+    pageTitle: 'Сказки',
+
+    // Playback behavior
+    autoplayOnSelect: true,        // when user clicks an item
+    autoplayFirstItem: false,       // when page loads (often blocked on mobile)
+    autoNextOnEnded: true,
+    rememberPosition: true,         // store per-track position in localStorage
+    rememberPositionMinSeconds: 8,  // don't store tiny positions
+    seekBackSeconds: 10,
+    seekForwardSeconds: 30,
+
+    // UI behavior
+    groupByBook: true,
+    showCreatedAt: true,
+    showDriveLinkInList: true,
+    showDownloadLinkInList: true,
+    showEpisodeNumber: true,
+
+    // Reliability / UX
+    setAudioTypeHints: true,        // try to set <source type="..."> based on extension
+    preferDirectUrl: true,          // use it.url from backend (Drive uc? link)
+    fallbackToDriveViewOnError: true,
+
+    // Diagnostics
+    debug: false,                   // set true to show debug panel
+    logToConsole: false,            // noisy; use when debugging playback issues
+  };
+
+  /**
+   * =========================
+   * DATA (injected from Apps Script)
+   * =========================
+   * itemsJson must be safeJson_() from Code.gs (it replaces "<" etc.)
+   */
+  const ITEMS = JSON.parse('<?!= itemsJson ?>');
+
+  /**
+   * =========================
+   * STATE
+   * =========================
+   */
+  const state = {
+    flat: [],          // flattened playlist (in rendering order)
+    currentIndex: -1,
+    isUserGesture: false, // helps explain autoplay restrictions
+  };
+
+  /**
+   * =========================
+   * DOM
+   * =========================
+   */
+  const $ = (id) => document.getElementById(id);
+
+  const audio = $('audio');
+  const now = $('now');
+  const hint = $('hint');
+  const listEl = $('list');
+  const statusEl = $('status');
+
+  const btnPrev = $('prev');
+  const btnNext = $('next');
+  const btnBack = $('back10');
+  const btnFwd = $('fwd30');
+
+  const openDrive = $('openDrive');
+  const download = $('download');
+
+  const debugBox = $('debugBox');
+  const debugOut = $('debugOut');
+
+  /**
+   * =========================
+   * Utilities
+   * =========================
+   */
+  function log(...args) {
+    if (CONFIG.logToConsole) console.log('[stories]', ...args);
+    if (CONFIG.debug) {
+      const msg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a, null, 2))).join(' ');
+      debugOut.textContent = (debugOut.textContent + '\n' + msg).trim();
+    }
+  }
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function safeText(s) {
+    // ensure we always work with strings
+    return (s == null) ? '' : String(s);
+  }
+
+  function getExt(name) {
+    const m = safeText(name).toLowerCase().match(/\.([a-z0-9]+)$/);
+    return m ? m[1] : '';
+  }
+
+  function guessMimeByExt(ext) {
+    // minimal hints for <audio> sources; not always required
+    switch (ext) {
+      case 'mp3': return 'audio/mpeg';
+      case 'ogg': return 'audio/ogg';
+      case 'm4a': return 'audio/mp4';
+      default: return '';
+    }
+  }
+
+  function storageKeyForTrack(track) {
+    // keep stable across reloads
+    // Prefer Drive file id if present, otherwise fallback to url
+    return track && (track.id ? `pos:${track.id}` : `pos:${track.url}`);
+  }
+
+  function loadSavedPosition(track) {
+    if (!CONFIG.rememberPosition) return 0;
+    try {
+      const key = storageKeyForTrack(track);
+      const raw = localStorage.getItem(key);
+      const val = raw ? Number(raw) : 0;
+      return Number.isFinite(val) ? val : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function savePosition(track, seconds) {
+    if (!CONFIG.rememberPosition) return;
+    if (!Number.isFinite(seconds)) return;
+    if (seconds < CONFIG.rememberPositionMinSeconds) return;
+
+    try {
+      const key = storageKeyForTrack(track);
+      localStorage.setItem(key, String(seconds));
+    } catch { /* ignore */ }
+  }
+
+  function clearPosition(track) {
+    if (!CONFIG.rememberPosition) return;
+    try {
+      const key = storageKeyForTrack(track);
+      localStorage.removeItem(key);
+    } catch { /* ignore */ }
+  }
+
+  /**
+   * =========================
+   * Playback
+   * =========================
+   */
+  function updateNavButtons() {
+    btnPrev.disabled = !(state.currentIndex > 0);
+    btnNext.disabled = !(state.currentIndex >= 0 && state.currentIndex + 1 < state.flat.length);
+  }
+
+  function highlightActive() {
+    document.querySelectorAll('.item').forEach(x => x.classList.remove('active'));
+    const el = document.querySelector(`.item[data-idx="${state.currentIndex}"]`);
+    if (el) el.classList.add('active');
+  }
+
+  async function tryPlay() {
+    try {
+      await audio.play();
+      setStatus('играет');
+    } catch (e) {
+      // Autoplay may be blocked without a gesture
+      setStatus('нажми Play');
+      log('play() blocked or failed:', e && e.message ? e.message : e);
+    }
+  }
+
+  function setCurrent(index, opts = {}) {
+    const { autoplay = CONFIG.autoplayOnSelect } = opts;
+    if (index < 0 || index >= state.flat.length) return;
+
+    state.currentIndex = index;
+    const t = state.flat[index];
+
+    now.textContent = t.displayTitle;
+    hint.textContent = CONFIG.showCreatedAt && t.createdStr ? `Загружено: ${t.createdStr}` : '';
+
+    openDrive.href = t.viewUrl || '#';
+    download.href = t.url || '#';
+
+    // Build audio source reliably
+    setStatus('загрузка...');
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.innerHTML = ''; // clear sources
+
+    const ext = getExt(t.name || t.title || '');
+    const mime = CONFIG.setAudioTypeHints ? guessMimeByExt(ext) : '';
+
+    if (mime) {
+      const src = document.createElement('source');
+      src.src = t.url;
+      src.type = mime;
+      audio.appendChild(src);
+    } else {
+      // fallback
+      audio.src = t.url;
+    }
+
+    // Restore saved position
+    const saved = loadSavedPosition(t);
+    // Wait for metadata to seek reliably
+    audio.onloadedmetadata = () => {
+      if (saved > 0 && Number.isFinite(audio.duration)) {
+        audio.currentTime = clamp(saved, 0, Math.max(0, audio.duration - 0.5));
+        log('restored position', saved);
+      }
+      if (autoplay) tryPlay();
+      highlightActive();
+      updateNavButtons();
+    };
+
+    audio.onerror = () => {
+      setStatus('ошибка');
+      const err = audio.error ? `code=${audio.error.code}` : 'unknown';
+      log('audio error', err, { track: t });
+
+      // Optional fallback: open Drive view if playback fails
+      if (CONFIG.fallbackToDriveViewOnError && t.viewUrl) {
+        hint.textContent = `Не проигрывается в браузере. Открой в Drive. (${err})`;
+      } else {
+        hint.textContent = `Не проигрывается в браузере. (${err})`;
+      }
+    };
+
+    highlightActive();
+    updateNavButtons();
+  }
+
+  function next() {
+    if (state.currentIndex + 1 < state.flat.length) {
+      setCurrent(state.currentIndex + 1, { autoplay: true });
+    }
+  }
+
+  function prev() {
+    if (state.currentIndex - 1 >= 0) {
+      setCurrent(state.currentIndex - 1, { autoplay: true });
+    }
+  }
+
+  /**
+   * =========================
+   * Rendering (no innerHTML with user-controlled strings)
+   * =========================
+   */
+  function groupItemsByBook(items) {
+    const map = new Map();
+    for (const it of items) {
+      const book = safeText(it.book || CONFIG.pageTitle);
+      if (!map.has(book)) map.set(book, []);
+      map.get(book).push(it);
+    }
+    return map;
+  }
+
+  function makeEl(tag, className, text) {
+    const el = document.createElement(tag);
+    if (className) el.className = className;
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function makeLink(text, href, opts = {}) {
+    const a = document.createElement('a');
+    a.href = href || '#';
+    a.textContent = text;
+    if (opts.download) a.setAttribute('download', '');
+    if (opts.newTab) {
+      a.target = '_blank';
+      a.rel = 'noopener';
+    }
+    if (opts.preventDefault) {
+      a.href = '#';
+      a.addEventListener('click', (e) => { e.preventDefault(); opts.onClick && opts.onClick(e); });
+    } else if (opts.onClick) {
+      a.addEventListener('click', opts.onClick);
+    }
+    return a;
+  }
+
+  function render() {
+    $('pageTitle').textContent = CONFIG.pageTitle;
+    if (CONFIG.debug) debugBox.style.display = 'block';
+
+    // Defensive normalization
+    const items = Array.isArray(ITEMS) ? ITEMS : [];
+    state.flat = [];
+    listEl.innerHTML = '';
+
+    const containerFrag = document.createDocumentFragment();
+
+    const byBook = CONFIG.groupByBook ? groupItemsByBook(items) : new Map([[CONFIG.pageTitle, items]]);
+
+    for (const [book, arr] of byBook.entries()) {
+      const block = makeEl('div', 'book');
+      const h2 = makeEl('h2', null, book);
+      block.appendChild(h2);
+
+      for (const it of arr) {
+        const idx = state.flat.length;
+
+        const numberPart = (CONFIG.showEpisodeNumber && it.number != null) ? `#${it.number}. ` : '';
+        const title = safeText(it.title || it.name || 'Сказка');
+        const displayTitle = `${numberPart}${title}`;
+
+        const track = {
+          ...it,
+          displayTitle,
+          // Keep original name for MIME guessing
+          name: it.name || it.title || '',
+          url: it.url,
+          viewUrl: it.viewUrl
+        };
+
+        state.flat.push(track);
+
+        const itemEl = makeEl('div', 'item');
+        itemEl.dataset.idx = String(idx);
+
+        // row: title + created
+        const row = makeEl('div', 'row');
+
+        const titleEl = makeEl('div', 'title', displayTitle);
+        row.appendChild(titleEl);
+
+        const metaRight = makeEl('div', 'meta', CONFIG.showCreatedAt ? safeText(it.createdStr || '') : '');
+        row.appendChild(metaRight);
+
+        itemEl.appendChild(row);
+
+        // links
+        const links = makeEl('div', 'links');
+
+        links.appendChild(
+          makeLink('▶ Play', '#', {
+            preventDefault: true,
+            onClick: () => setCurrent(idx, { autoplay: true })
+          })
+        );
+
+        if (CONFIG.showDownloadLinkInList && it.url) {
+          links.appendChild(makeLink('⬇ Скачать', it.url, { download: true }));
+        }
+
+        if (CONFIG.showDriveLinkInList && it.viewUrl) {
+          links.appendChild(makeLink('Drive', it.viewUrl, { newTab: true }));
+        }
+
+        itemEl.appendChild(links);
+
+        // click on card selects too
+        itemEl.addEventListener('click', (e) => {
+          // ignore clicks on <a>
+          const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+          if (tag === 'a') return;
+          setCurrent(idx, { autoplay: true });
+        });
+
+        block.appendChild(itemEl);
+      }
+
+      containerFrag.appendChild(block);
+    }
+
+    listEl.appendChild(containerFrag);
+
+    // initial track
+    if (state.flat.length) {
+      setCurrent(0, { autoplay: CONFIG.autoplayFirstItem });
+      setStatus('готово');
+    } else {
+      setStatus('нет файлов');
+      now.textContent = 'Нет файлов в папке';
+    }
+  }
+
+  /**
+   * =========================
+   * Event wiring
+   * =========================
+   */
+  function wireEvents() {
+    // mark user gestures to improve autoplay success reasoning
+    ['click', 'touchstart', 'keydown'].forEach(evt => {
+      window.addEventListener(evt, () => { state.isUserGesture = true; }, { once: true, passive: true });
+    });
+
+    btnNext.addEventListener('click', () => next());
+    btnPrev.addEventListener('click', () => prev());
+
+    btnBack.addEventListener('click', () => {
+      audio.currentTime = Math.max(0, (audio.currentTime || 0) - CONFIG.seekBackSeconds);
+    });
+
+    btnFwd.addEventListener('click', () => {
+      audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds;
+    });
+
+    audio.addEventListener('ended', () => {
+      setStatus('конец');
+      const t = state.flat[state.currentIndex];
+      if (t) clearPosition(t);
+
+      if (CONFIG.autoNextOnEnded) {
+        if (state.currentIndex + 1 < state.flat.length) {
+          next();
+        }
+      }
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      const t = state.flat[state.currentIndex];
+      if (!t) return;
+      // throttle saves a bit
+      if (audio.currentTime && Math.floor(audio.currentTime) % 3 === 0) {
+        savePosition(t, audio.currentTime);
+      }
+    });
+
+    audio.addEventListener('play', () => setStatus('играет'));
+    audio.addEventListener('pause', () => setStatus('пауза'));
+    audio.addEventListener('waiting', () => setStatus('буфер...'));
+    audio.addEventListener('stalled', () => setStatus('сеть...'));
+    audio.addEventListener('canplay', () => setStatus('готово'));
+  }
+
+  // Init
+  wireEvents();
+  render();
+</script>
+</body>
+</html>
