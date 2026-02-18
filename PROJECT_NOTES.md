@@ -30,6 +30,7 @@ UI expects an array of items with at least:
 Notes:
 - Newest-first display is by `createdMs` desc.
 - Episode numbering: oldest = `#1`, newest = `#N`.
+- `createdStr` is rendered as date only (`yyyy-MM-dd`).
 
 ---
 
@@ -39,12 +40,14 @@ Notes:
   - autoplay-on-select (best-effort), auto-next on ended
   - seek step buttons (e.g., -10s/+30s)
   - optional resume position via `localStorage`
-  - numbering mode: `episodeNumberMode` (`perBook` by default; also `backendGlobal`/`none`)
+  - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
   - download links in UI are disabled by default (`showDownloadLinkInList: false`; top-level Download button removed)
+  - list actions: primary button opens Google Drive; browser-play button is shown only when `audio.canPlayType` indicates likely support for file format.
 - Defensive rendering:
   - avoid `innerHTML` for user-controlled strings; use DOM + `textContent`.
 - Reliability UX:
   - on playback error, auto-try alternate Drive stream URLs (`uc?export=download` / `uc?export=open`), then show message and provide “Open in Drive” fallback.
+  - if autoplay/play tap produces no progress shortly after source switch, frontend also tries next candidate URL.
 - Diagnostics:
   - `?debug=1` in URL enables in-page debug panel and console logs at runtime.
   - Early bootstrap logger (`window.__bootLog`) is initialized before main app script and captures `window.error` / `unhandledrejection`.

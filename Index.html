@@ -152,8 +152,10 @@
     showDriveLinkInList: true,
     showDownloadLinkInList: false,
     showEpisodeNumber: true,
-    episodeNumberMode: 'perBook',
+    episodeNumberMode: 'backendGlobal',
     fallbackToDriveViewOnError: true,
+    playInBrowserLabel: '▶ Воспроизвести в браузере',
+    openInDriveLabel: 'Открыть в Google Drive',
     debug: false,
     logToConsole: false
   };
@@ -184,7 +186,7 @@
   }
 
   var ITEMS = parseItemsFromDom();
-  var state = { flat: [], currentIndex: -1, isUserGesture: false, candidateUrls: [], candidateIndex: 0 };
+  var state = { flat: [], currentIndex: -1, isUserGesture: false, candidateUrls: [], candidateIndex: 0, unsupportedById: {} };
 
   function $(id) { return document.getElementById(id); }
   var audio = $('audio');
@@ -218,6 +220,65 @@
   }
 
   function setStatus(text) { statusEl.textContent = text; }
+  function getExt(name) {
+    var s = safeText(name).toLowerCase();
+    var m = s.match(/\.([a-z0-9]+)$/);
+    return m ? m[1] : '';
+  }
+  function guessMimeByExt(ext) {
+    if (ext === 'mp3') return 'audio/mpeg';
+    if (ext === 'ogg') return 'audio/ogg';
+    if (ext === 'm4a') return 'audio/mp4';
+    return '';
+  }
+  function loadUnsupportedMap() {
+    try {
+      var raw = localStorage.getItem('unsupportedById:v1');
+      var obj = raw ? JSON.parse(raw) : {};
+      return obj && typeof obj === 'object' ? obj : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function saveUnsupportedMap() {
+    try {
+      localStorage.setItem('unsupportedById:v1', JSON.stringify(state.unsupportedById || {}));
+    } catch (e) {}
+  }
+  function isKnownUnsupported(track) {
+    return !!(track && track.id && state.unsupportedById && state.unsupportedById[track.id]);
+  }
+  function markUnsupported(track, errCode) {
+    if (!track || !track.id) return;
+    state.unsupportedById[track.id] = { err: errCode || 'code=4', at: Date.now() };
+    saveUnsupportedMap();
+    log('marked unsupported', { id: track.id, err: errCode || 'code=4' });
+  }
+  function canLikelyPlayInBrowser(track) {
+    var ext = getExt(track && (track.name || track.title || ''));
+    var mime = guessMimeByExt(ext);
+    if (!mime) return false;
+    if (!audio || typeof audio.canPlayType !== 'function') return true;
+    var answer = String(audio.canPlayType(mime) || '').toLowerCase();
+    return answer === 'probably' || answer === 'maybe';
+  }
+  function clearPlayWatchdog() {
+    if (state.playWatchdogId) {
+      clearTimeout(state.playWatchdogId);
+      state.playWatchdogId = 0;
+    }
+  }
+  function armPlayWatchdog(autoplay) {
+    clearPlayWatchdog();
+    if (!autoplay) return;
+    state.playWatchdogId = setTimeout(function () {
+      // If playback did not really start, try alternate URL.
+      if (audio.paused && (!audio.currentTime || audio.currentTime < 0.25)) {
+        log('play watchdog: no progress, trying fallback');
+        tryNextCandidate(true);
+      }
+    }, 1800);
+  }
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
   function safeText(s) { return (s == null) ? '' : String(s); }
 
@@ -282,14 +343,19 @@
 
   function tryPlay() {
     try {
+      log('tryPlay', { idx: state.currentIndex, src: audio.currentSrc || audio.src });
       var p = audio.play();
       if (p && typeof p.then === 'function') {
-        p.then(function () { setStatus('играет'); }).catch(function (e) {
+        p.then(function () {
+          setStatus('играет');
+          log('play promise resolved');
+        }).catch(function (e) {
           setStatus('нажми Play');
           log('play() blocked or failed:', e && e.message ? e.message : e);
         });
       } else {
         setStatus('играет');
+        log('play immediate');
       }
     } catch (e) {
       setStatus('нажми Play');
@@ -312,7 +378,9 @@
     state.candidateIndex += 1;
     setStatus('пробуем другой URL...');
     hint.textContent = 'Источник ' + (state.candidateIndex + 1) + '/' + state.candidateUrls.length;
+    log('fallback source', { index: state.candidateIndex, url: currentCandidateUrl() });
     setAudioSource(currentCandidateUrl());
+    armPlayWatchdog(autoplay);
     if (autoplay) {
       var onCanPlay = function () {
         audio.removeEventListener('canplay', onCanPlay);
@@ -332,10 +400,12 @@
     now.textContent = t.displayTitle;
     hint.textContent = (CONFIG.showCreatedAt && t.createdStr) ? ('Загружено: ' + t.createdStr) : '';
     openDrive.href = t.viewUrl || '#';
+    openDrive.textContent = CONFIG.openInDriveLabel;
 
     setStatus('загрузка...');
     state.candidateUrls = buildPlaybackCandidates(t);
     state.candidateIndex = 0;
+    log('setCurrent', { index: index, title: t.displayTitle, candidates: state.candidateUrls });
     if (!state.candidateUrls.length) {
       setStatus('ошибка');
       hint.textContent = 'Нет URL для воспроизведения.';
@@ -345,9 +415,11 @@
     }
     hint.textContent = 'Источник 1/' + state.candidateUrls.length + ((CONFIG.showCreatedAt && t.createdStr) ? (' • Загружено: ' + t.createdStr) : '');
     setAudioSource(currentCandidateUrl());
+    armPlayWatchdog(autoplay);
 
     var saved = loadSavedPosition(t);
     audio.onloadedmetadata = function () {
+      log('loadedmetadata', { duration: audio.duration, url: currentCandidateUrl() });
       if (saved > 0 && isFinite(audio.duration)) {
         audio.currentTime = clamp(saved, 0, Math.max(0, audio.duration - 0.5));
       }
@@ -358,10 +430,15 @@
 
     audio.onerror = function () {
       var err = audio.error ? ('code=' + audio.error.code) : 'unknown';
+      log('audio error', { err: err, url: currentCandidateUrl() });
       if (tryNextCandidate(autoplay)) return;
       setStatus('ошибка');
+      if (err === 'code=4') {
+        markUnsupported(t, err);
+      }
       if (CONFIG.fallbackToDriveViewOnError && t.viewUrl) {
-        hint.textContent = 'Не проигрывается в браузере. Открой в Drive. (' + err + ')';
+        hint.textContent = 'Не проигрывается в браузере. Нажмите "' + CONFIG.openInDriveLabel + '". (' + err + ')';
+        openDrive.textContent = CONFIG.openInDriveLabel + ' (рекомендуется)';
       } else {
         hint.textContent = 'Не проигрывается в браузере. (' + err + ')';
       }
@@ -431,6 +508,7 @@
 
     var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
     if (window.__bootLog) window.__bootLog('render:items=' + items.length);
+    state.unsupportedById = loadUnsupportedMap();
     state.flat = [];
     listEl.innerHTML = '';
     var containerFrag = document.createDocumentFragment();
@@ -468,6 +546,8 @@
         track.url = it.url;
         track.viewUrl = it.viewUrl;
         state.flat.push(track);
+        var likelyPlayable = canLikelyPlayInBrowser(track);
+        var showPlayInBrowser = likelyPlayable;
 
         var itemEl = makeEl('div', 'item');
         itemEl.setAttribute('data-idx', String(idx));
@@ -480,20 +560,24 @@
         itemEl.appendChild(row);
 
         var links = makeEl('div', 'links');
-        (function (capturedIdx) {
-          links.appendChild(makeLink('▶ Play', '#', {
-            preventDefault: true,
-            onClick: function () { setCurrent(capturedIdx, true); }
-          }));
+        (function (capturedIdx, capturedShowPlay, capturedViewUrl) {
+          if (capturedViewUrl) {
+            links.appendChild(makeLink(CONFIG.openInDriveLabel, capturedViewUrl, { newTab: true }));
+          }
+          if (capturedShowPlay) {
+            links.appendChild(makeLink(CONFIG.playInBrowserLabel, '#', {
+              preventDefault: true,
+              onClick: function () { setCurrent(capturedIdx, true); }
+            }));
+          }
           itemEl.addEventListener('click', function (e) {
             var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
             if (tag === 'a') return;
-            setCurrent(capturedIdx, true);
+            setCurrent(capturedIdx, !!capturedShowPlay);
           });
-        })(idx);
+        })(idx, showPlayInBrowser, track.viewUrl);
 
         if (CONFIG.showDownloadLinkInList && it.url) links.appendChild(makeLink('⬇ Скачать', it.url, { download: true }));
-        if (CONFIG.showDriveLinkInList && it.viewUrl) links.appendChild(makeLink('Drive', it.viewUrl, { newTab: true }));
         itemEl.appendChild(links);
         block.appendChild(itemEl);
       }
@@ -528,6 +612,7 @@
     btnFwd.addEventListener('click', function () { audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds; });
 
     audio.addEventListener('ended', function () {
+      log('ended', { currentTime: audio.currentTime, duration: audio.duration });
       setStatus('конец');
       var t = state.flat[state.currentIndex];
       if (t) clearPosition(t);
@@ -539,10 +624,27 @@
       if (audio.currentTime && Math.floor(audio.currentTime) % 3 === 0) savePosition(t, audio.currentTime);
     });
     audio.addEventListener('play', function () { setStatus('играет'); });
-    audio.addEventListener('pause', function () { setStatus('пауза'); });
-    audio.addEventListener('waiting', function () { setStatus('буфер...'); });
-    audio.addEventListener('stalled', function () { setStatus('сеть...'); });
-    audio.addEventListener('canplay', function () { setStatus('готово'); });
+    audio.addEventListener('playing', function () {
+      clearPlayWatchdog();
+      log('playing', { currentTime: audio.currentTime, url: audio.currentSrc || audio.src });
+      setStatus('играет');
+    });
+    audio.addEventListener('pause', function () {
+      log('pause', { currentTime: audio.currentTime, ended: audio.ended });
+      setStatus('пауза');
+    });
+    audio.addEventListener('waiting', function () {
+      log('waiting');
+      setStatus('буфер...');
+    });
+    audio.addEventListener('stalled', function () {
+      log('stalled');
+      setStatus('сеть...');
+    });
+    audio.addEventListener('canplay', function () {
+      log('canplay');
+      setStatus('готово');
+    });
   }
 
   if (window.__bootLog) window.__bootLog('init:start');

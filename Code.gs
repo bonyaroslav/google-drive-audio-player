@@ -58,7 +58,7 @@ function getItems_() {
       id,
       name,
       createdMs: created.getTime(),
-      createdStr: Utilities.formatDate(created, TZ, 'yyyy-MM-dd HH:mm'),
+      createdStr: Utilities.formatDate(created, TZ, 'yyyy-MM-dd'),
       book: parseBook_(name),
       title: parseTitle_(name),
       // Often works for in-browser playback + download. If it doesn't on a device,
