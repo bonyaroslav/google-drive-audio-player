@@ -6,7 +6,6 @@
  * - Injects itemsJson into Index.html template
  */
 
-const FOLDER_ID = '1rqRN7tAZR1i7RlXi-aZefruVnE57PRZ3';
 const TZ = 'Europe/Madrid';
 
 // Optional: cache listing to reduce Drive calls.
@@ -39,7 +38,8 @@ function getItemsCached_() {
 }
 
 function getItems_() {
-  const folder = DriveApp.getFolderById(FOLDER_ID);
+  const folderId = getFolderId_();
+  const folder = DriveApp.getFolderById(folderId);
   const it = folder.getFiles();
 
   const out = [];
@@ -84,6 +84,14 @@ function parseBook_(filename) {
   const m = base.match(/^(.+?)\.\s+(.+)$/);
   if (m) return m[1].trim();
   return 'Сказки';
+}
+
+function getFolderId_() {
+  const folderId = (PropertiesService.getScriptProperties().getProperty('FOLDER_ID') || '').trim();
+  if (!folderId) {
+    throw new Error('Missing required Script Property: FOLDER_ID');
+  }
+  return folderId;
 }
 
 function parseTitle_(filename) {

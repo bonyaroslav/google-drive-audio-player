@@ -3,7 +3,7 @@ Technical notes + decisions log (single file by design). Keep it concise.
 ---
 
 ## 1) Architecture (high level)
-- **Storage:** Google Drive folder (`FOLDER_ID`) contains audio files.
+- **Storage:** Google Drive folder (`FOLDER_ID` Script Property) contains audio files.
 - **Backend:** Google Apps Script Web App (`doGet`) lists Drive files and injects `itemsJson` into `Index.html` via HtmlService templates.
 - **Frontend:** `Index.html` renders playlist UI and controls playback via HTML5 `<audio>`.
 
@@ -39,6 +39,7 @@ Notes:
   - grouping by `book`, showing metadata, debug toggles
   - autoplay-on-select (best-effort), auto-next on ended
   - seek step buttons (e.g., -10s/+30s)
+  - UI language options (`ru`/`en`) with RU default; selected language persisted in `localStorage`
   - optional resume position via `localStorage`
   - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
   - download links in UI are disabled by default (`showDownloadLinkInList: false`; top-level Download button removed)
@@ -57,6 +58,7 @@ Notes:
 
 ## 4) Backend behavior (Code.gs)
 - Reads files from Drive folder; filters `.mp3/.ogg/.m4a`.
+- Folder source: Script Property `FOLDER_ID` (required). `Code.gs` throws a clear error if missing.
 - Parses book/title from filename pattern:
   - strict split only by `Book. Title.ext` (dot + space). If pattern is absent, item falls back to default book and full base filename as title.
 - Injects JSON into template using `safeJson_()` (escape for `<script>` context, including `<`, `>`, `&`, `U+2028`, `U+2029`).
@@ -115,3 +117,8 @@ Android focus:
 **Decision:** Use CacheService with short TTL (e.g., 60–300s).  
 **Why:** Faster loads; fewer Drive calls; acceptable delay for new uploads.  
 **Trade-off:** New files may appear after TTL.
+
+### 2026-02-19 — Centralized UI localization + language selector
+**Decision:** Move user-facing strings into one localization dictionary and add a top-right language selector (`RU`/`EN`) in `Index.html`. RU remains default.  
+**Why:** Easier maintenance and safer text updates; no behavior change in backend contract.  
+**Trade-off:** Slightly more frontend state handling (language persistence/re-rendering).

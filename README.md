@@ -6,6 +6,7 @@ A tiny **Google-only** web app that lists audio files from a Google Drive folder
 - Reads audio files from a single Google Drive folder (`.mp3`, `.ogg`, `.m4a`)
 - Renders a web page (Apps Script Web App) with:
   - HTML5 `<audio>` player (native controls + seek)
+  - RU/EN UI switcher (RU default)
   - Previous/Next navigation
   - Seek buttons (e.g., -10s / +30s)
   - Auto-next when a track ends
@@ -44,3 +45,26 @@ Each audio item looks like:
   "url": "https://drive.google.com/uc?export=download&id=DriveFileId",
   "viewUrl": "https://drive.google.com/file/d/DriveFileId/view"
 }
+```
+
+## Setup (Apps Script)
+1. Create an Apps Script project at https://script.google.com.
+2. Add files in project root:
+   - `Code.gs`
+   - `Index.html`
+3. Open `Project Settings` -> `Script properties`.
+4. Add property:
+   - Key: `FOLDER_ID`
+   - Value: your Google Drive folder ID (the folder that contains audio files).
+5. Ensure Apps Script has permission to read that folder.
+
+## Deploy
+1. In Apps Script, click `Deploy` -> `New deployment`.
+2. Type: `Web app`.
+3. Execute as: `Me`.
+4. Who has access: choose per your privacy model (for family use, usually restricted is better than public).
+5. Deploy and open the Web App URL.
+
+## Important security note
+- Do not hardcode `FOLDER_ID` in `Code.gs`.
+- Keep `FOLDER_ID` only in Script Properties so it is outside Git history/repository.
