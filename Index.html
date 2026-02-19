@@ -82,6 +82,43 @@
       display: none;
     }
     .debug pre { margin: 8px 0 0; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+
+    .pager {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px;
+      border: 1px solid var(--borderSoft);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .pager .pageInfo {
+      font-size: 14px;
+      color: var(--textSoft);
+      margin: 0 10px;
+    }
+    .pager .pagerBtn {
+      min-width: 46px;
+      padding: 10px 14px;
+      font-size: 16px;
+      font-weight: 600;
+      border: 1px solid var(--btnBorder);
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+    }
+    .pager .pagerBtn.active {
+      background: #e8eefc;
+      border-color: #9fb3ea;
+    }
+    .pager .pagerBtn[disabled] {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 
@@ -123,7 +160,9 @@
     </div>
   </div>
 
+  <div class="pager" id="pagerTop"></div>
   <div class="list" id="list"></div>
+  <div class="pager" id="pagerBottom"></div>
 </div>
 
 <script id="itemsData" type="application/json"><?!= itemsJson ?></script>
@@ -194,7 +233,12 @@
       noFilesInFolder: 'Нет файлов в папке',
       defaultTrackTitle: 'Сказка',
       debugTitle: 'Debug',
-      debugHint: '(toggle in CONFIG)'
+      debugHint: '(toggle in CONFIG)',
+      pagerFirst: '«',
+      pagerPrev: '‹',
+      pagerNext: '›',
+      pagerLast: '»',
+      pagerInfo: 'Страница {current} из {total}'
     },
     en: {
       appTitle: 'Stories',
@@ -232,13 +276,19 @@
       noFilesInFolder: 'No files in folder',
       defaultTrackTitle: 'Story',
       debugTitle: 'Debug',
-      debugHint: '(toggle in CONFIG)'
+      debugHint: '(toggle in CONFIG)',
+      pagerFirst: '«',
+      pagerPrev: '‹',
+      pagerNext: '›',
+      pagerLast: '»',
+      pagerInfo: 'Page {current} of {total}'
     }
   };
 
   var CONFIG = {
     defaultLanguage: 'ru',
     rememberLanguage: true,
+    itemsPerPage: 10,
     autoplayOnSelect: true,
     autoplayFirstItem: false,
     autoNextOnEnded: true,
@@ -283,13 +333,15 @@
   }
 
   var ITEMS = parseItemsFromDom();
-  var state = { flat: [], currentIndex: -1, isUserGesture: false, candidateUrls: [], candidateIndex: 0, unsupportedById: {}, lang: 'ru' };
+  var state = { flat: [], currentIndex: -1, currentPage: 1, isUserGesture: false, candidateUrls: [], candidateIndex: 0, unsupportedById: {}, lang: 'ru' };
 
   function $(id) { return document.getElementById(id); }
   var audio = $('audio');
   var now = $('now');
   var hint = $('hint');
   var listEl = $('list');
+  var pagerTop = $('pagerTop');
+  var pagerBottom = $('pagerBottom');
   var statusEl = $('status');
   var btnPrev = $('prev');
   var btnNext = $('next');
@@ -435,6 +487,28 @@
   }
   function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
   function safeText(s) { return (s == null) ? '' : String(s); }
+  function getPageSize() {
+    var n = Number(CONFIG.itemsPerPage);
+    if (!isFinite(n) || n < 1) return 10;
+    return Math.floor(n);
+  }
+  function getTotalPages() {
+    var pageSize = getPageSize();
+    return Math.max(1, Math.ceil(state.flat.length / pageSize));
+  }
+  function pageForIndex(index) {
+    return Math.floor(index / getPageSize()) + 1;
+  }
+  function clampPage(page) {
+    return clamp(page, 1, getTotalPages());
+  }
+  function getPageWindow(total, current, visibleCount) {
+    var count = Math.max(1, visibleCount || 5);
+    var start = Math.max(1, current - Math.floor(count / 2));
+    var end = Math.min(total, start + count - 1);
+    start = Math.max(1, end - count + 1);
+    return { start: start, end: end };
+  }
 
   function buildPlaybackCandidates(track) {
     var out = [];
@@ -548,6 +622,12 @@
   function setCurrent(index, autoplay) {
     if (typeof autoplay === 'undefined') autoplay = CONFIG.autoplayOnSelect;
     if (index < 0 || index >= state.flat.length) return;
+    var targetPage = pageForIndex(index);
+    if (targetPage !== state.currentPage) {
+      state.currentPage = targetPage;
+      renderPager();
+      renderCurrentPage();
+    }
 
     state.currentIndex = index;
     var track = state.flat[index];
@@ -654,21 +734,110 @@
     return a;
   }
 
-  function render(preserveCurrent) {
-    if (window.__bootLog) window.__bootLog('render:start');
-    $('pageTitle').textContent = t('appTitle');
-    if (CONFIG.debug) {
-      debugBox.style.display = 'block';
-      if (window.__BOOT_LOGS && window.__BOOT_LOGS.length) debugOut.textContent = window.__BOOT_LOGS.join('\n');
+  function renderPagerInto(container, totalPages, currentPage) {
+    container.innerHTML = '';
+    var frag = document.createDocumentFragment();
+
+    function addButton(label, targetPage, disabled, active) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pagerBtn' + (active ? ' active' : '');
+      btn.textContent = label;
+      btn.disabled = !!disabled;
+      if (!disabled) {
+        btn.addEventListener('click', function () {
+          state.currentPage = clampPage(targetPage);
+          renderPager();
+          renderCurrentPage();
+        });
+      }
+      frag.appendChild(btn);
     }
 
-    var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
-    if (window.__bootLog) window.__bootLog('render:items=' + items.length);
-    state.unsupportedById = loadUnsupportedMap();
-    state.flat = [];
+    addButton(t('pagerFirst'), 1, currentPage <= 1, false);
+    addButton(t('pagerPrev'), currentPage - 1, currentPage <= 1, false);
+
+    var windowPages = getPageWindow(totalPages, currentPage, 5);
+    for (var p = windowPages.start; p <= windowPages.end; p++) {
+      addButton(String(p), p, false, p === currentPage);
+    }
+
+    addButton(t('pagerNext'), currentPage + 1, currentPage >= totalPages, false);
+    addButton(t('pagerLast'), totalPages, currentPage >= totalPages, false);
+
+    var info = makeEl('span', 'pageInfo', t('pagerInfo', { current: currentPage, total: totalPages }));
+    frag.appendChild(info);
+    container.appendChild(frag);
+  }
+
+  function renderPager() {
+    var totalPages = getTotalPages();
+    state.currentPage = clampPage(state.currentPage);
+    renderPagerInto(pagerTop, totalPages, state.currentPage);
+    renderPagerInto(pagerBottom, totalPages, state.currentPage);
+  }
+
+  function renderCurrentPage() {
     listEl.innerHTML = '';
+    var pageSize = getPageSize();
+    var startIdx = (state.currentPage - 1) * pageSize;
+    var endIdx = Math.min(state.flat.length, startIdx + pageSize);
     var containerFrag = document.createDocumentFragment();
 
+    var block = null;
+    var currentBook = '';
+    for (var idx = startIdx; idx < endIdx; idx++) {
+      var track = state.flat[idx];
+      var book = safeText(track.book || t('appTitle'));
+      if (CONFIG.groupByBook) {
+        if (!block || book !== currentBook) {
+          block = makeEl('div', 'book');
+          block.appendChild(makeEl('h2', null, book));
+          containerFrag.appendChild(block);
+          currentBook = book;
+        }
+      } else if (!block) {
+        block = makeEl('div', 'book');
+        containerFrag.appendChild(block);
+      }
+
+      var itemEl = makeEl('div', 'item');
+      itemEl.setAttribute('data-idx', String(idx));
+
+      var row = makeEl('div', 'row');
+      row.appendChild(makeEl('div', 'title', track.displayTitle));
+      row.appendChild(makeEl('div', 'meta', CONFIG.showCreatedAt ? safeText(track.createdStr || '') : ''));
+      itemEl.appendChild(row);
+
+      var links = makeEl('div', 'links');
+      (function (capturedIdx, capturedTrack) {
+        if (capturedTrack.viewUrl) {
+          links.appendChild(makeLink(t('openInDriveLabel'), capturedTrack.viewUrl, { newTab: true }));
+        }
+        if (capturedTrack.showPlayInBrowser) {
+          links.appendChild(makeLink(t('playInBrowserLabel'), '#', {
+            preventDefault: true,
+            onClick: function () { setCurrent(capturedIdx, true); }
+          }));
+        }
+        itemEl.addEventListener('click', function (e) {
+          var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+          if (tag === 'a') return;
+          setCurrent(capturedIdx, !!capturedTrack.showPlayInBrowser);
+        });
+      })(idx, track);
+
+      if (CONFIG.showDownloadLinkInList && track.url) links.appendChild(makeLink(t('downloadInListLabel'), track.url, { download: true }));
+      itemEl.appendChild(links);
+      block.appendChild(itemEl);
+    }
+
+    listEl.appendChild(containerFrag);
+    highlightActive();
+  }
+
+  function buildFlatTracks(items) {
+    state.flat = [];
     var grouped;
     if (CONFIG.groupByBook) {
       grouped = groupItemsByBook(items);
@@ -680,67 +849,44 @@
     for (var b = 0; b < grouped.order.length; b++) {
       var book = grouped.order[b];
       var arr = grouped.map[book] || [];
-      var block = makeEl('div', 'book');
-      var h2 = makeEl('h2', null, book);
-      block.appendChild(h2);
-
       for (var localIdx = 0; localIdx < arr.length; localIdx++) {
         var it = arr[localIdx];
-        var idx = state.flat.length;
         var perBookNumber = arr.length - localIdx;
         var displayNumber = null;
         if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
         else if (CONFIG.episodeNumberMode === 'perBook') displayNumber = perBookNumber;
         var numberPart = (CONFIG.showEpisodeNumber && displayNumber != null) ? ('#' + displayNumber + '. ') : '';
         var title = safeText(it.title || it.name || t('defaultTrackTitle'));
-        var displayTitle = numberPart + title;
 
         var track = {};
         for (var k in it) if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
-        track.displayTitle = displayTitle;
+        track.book = safeText(book);
+        track.displayTitle = numberPart + title;
         track.name = it.name || it.title || '';
         track.url = it.url;
         track.viewUrl = it.viewUrl;
+        track.showPlayInBrowser = canLikelyPlayInBrowser(track);
         state.flat.push(track);
-        var likelyPlayable = canLikelyPlayInBrowser(track);
-        var showPlayInBrowser = likelyPlayable;
-
-        var itemEl = makeEl('div', 'item');
-        itemEl.setAttribute('data-idx', String(idx));
-
-        var row = makeEl('div', 'row');
-        var titleEl = makeEl('div', 'title', displayTitle);
-        row.appendChild(titleEl);
-        var metaRight = makeEl('div', 'meta', CONFIG.showCreatedAt ? safeText(it.createdStr || '') : '');
-        row.appendChild(metaRight);
-        itemEl.appendChild(row);
-
-        var links = makeEl('div', 'links');
-        (function (capturedIdx, capturedShowPlay, capturedViewUrl) {
-          if (capturedViewUrl) {
-            links.appendChild(makeLink(t('openInDriveLabel'), capturedViewUrl, { newTab: true }));
-          }
-          if (capturedShowPlay) {
-            links.appendChild(makeLink(t('playInBrowserLabel'), '#', {
-              preventDefault: true,
-              onClick: function () { setCurrent(capturedIdx, true); }
-            }));
-          }
-          itemEl.addEventListener('click', function (e) {
-            var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-            if (tag === 'a') return;
-            setCurrent(capturedIdx, !!capturedShowPlay);
-          });
-        })(idx, showPlayInBrowser, track.viewUrl);
-
-        if (CONFIG.showDownloadLinkInList && it.url) links.appendChild(makeLink(t('downloadInListLabel'), it.url, { download: true }));
-        itemEl.appendChild(links);
-        block.appendChild(itemEl);
       }
-      containerFrag.appendChild(block);
+    }
+  }
+
+  function render(preserveCurrent) {
+    if (window.__bootLog) window.__bootLog('render:start');
+    $('pageTitle').textContent = t('appTitle');
+    if (CONFIG.debug) {
+      debugBox.style.display = 'block';
+      if (window.__BOOT_LOGS && window.__BOOT_LOGS.length) debugOut.textContent = window.__BOOT_LOGS.join('\n');
     }
 
-    listEl.appendChild(containerFrag);
+    var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
+    if (window.__bootLog) window.__bootLog('render:items=' + items.length);
+    state.unsupportedById = loadUnsupportedMap();
+    buildFlatTracks(items);
+    state.currentPage = clampPage(state.currentPage);
+    renderPager();
+    renderCurrentPage();
+
     if (state.flat.length) {
       if (preserveCurrent && state.currentIndex >= 0 && state.currentIndex < state.flat.length) {
         setCurrent(state.currentIndex, false);
@@ -820,4 +966,3 @@
 </script>
 </body>
 </html>
-

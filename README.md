@@ -7,6 +7,7 @@ A tiny **Google-only** web app that lists audio files from a Google Drive folder
 - Renders a web page (Apps Script Web App) with:
   - HTML5 `<audio>` player (native controls + seek)
   - RU/EN UI switcher (RU default)
+  - Pagination (10 items per page) with large controls at top and bottom
   - Previous/Next navigation
   - Seek buttons (e.g., -10s / +30s)
   - Auto-next when a track ends

@@ -37,6 +37,7 @@ Notes:
 ## 3) Frontend behavior (Index.html)
 - Central `CONFIG` controls:
   - grouping by `book`, showing metadata, debug toggles
+  - pagination (`itemsPerPage`, default `10`) with top + bottom pager controls
   - autoplay-on-select (best-effort), auto-next on ended
   - seek step buttons (e.g., -10s/+30s)
   - UI language options (`ru`/`en`) with RU default; selected language persisted in `localStorage`
@@ -122,3 +123,8 @@ Android focus:
 **Decision:** Move user-facing strings into one localization dictionary and add a top-right language selector (`RU`/`EN`) in `Index.html`. RU remains default.  
 **Why:** Easier maintenance and safer text updates; no behavior change in backend contract.  
 **Trade-off:** Slightly more frontend state handling (language persistence/re-rendering).
+
+### 2026-02-19 — Playlist pagination (10 items/page)
+**Decision:** Paginate rendered playlist to 10 items per page by default (`CONFIG.itemsPerPage`) and render pager controls above and below the list.  
+**Why:** Better usability for long playlists, especially on tablets/phones.  
+**Trade-off:** Adds page state and list re-rendering when moving between pages.
