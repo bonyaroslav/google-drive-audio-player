@@ -40,7 +40,7 @@ Notes:
   - pagination (`itemsPerPage`, default `10`) with top + bottom pager controls
   - autoplay-on-select (best-effort), auto-next on ended when experimental audio is enabled
   - seek step buttons (e.g., -10s/+30s) in experimental audio mode
-  - UI language options (`ru`/`en`) with RU default; selected language persisted in `localStorage`
+  - UI language options (`uk`/`ru`/`en`) with Ukrainian default; selected language persisted in `localStorage`
   - optional resume position via `localStorage`
   - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
   - recent-feed layout with featured latest item, large card actions, refresh affordance, and iPhone-first sizing
@@ -122,7 +122,7 @@ Android focus:
 **Trade-off:** New files may appear after TTL.
 
 ### 2026-02-19 — Centralized UI localization + language selector
-**Decision:** Move user-facing strings into one localization dictionary and add a top-right language selector (`RU`/`EN`) in `Index.html`. RU remains default.  
+**Decision:** Move user-facing strings into one localization dictionary and add a top-right language selector in `Index.html`. Ukrainian is now the default UI language, with Russian and English also available.  
 **Why:** Easier maintenance and safer text updates; no behavior change in backend contract.  
 **Trade-off:** Slightly more frontend state handling (language persistence/re-rendering).
 

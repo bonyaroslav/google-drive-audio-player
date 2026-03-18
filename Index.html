@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru">
+<html lang="uk">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Сказки</title>
+  <title>Казки</title>
   <style>
     :root {
       --maxWidth: 880px;
@@ -303,12 +303,13 @@
   <div class="wrap">
     <div class="topBar">
       <div class="titleBlock">
-        <h1 id="pageTitle">Сказки</h1>
+        <h1 id="pageTitle">Казки</h1>
         <div class="subtitle" id="pageSubtitle"></div>
       </div>
       <div class="langWrap">
-        <label for="langSelect" id="langLabel">Язык</label>
+        <label for="langSelect" id="langLabel">Мова</label>
         <select id="langSelect">
+          <option value="uk">UA</option>
           <option value="ru">RU</option>
           <option value="en">EN</option>
         </select>
@@ -317,23 +318,23 @@
 
     <section class="hero" id="hero">
       <div class="eyebrow" id="heroEyebrow"></div>
-      <h2 class="heroTitle" id="heroTitle">Ничего не выбрано</h2>
+      <h2 class="heroTitle" id="heroTitle">Нічого не вибрано</h2>
       <div class="heroMeta" id="heroMeta"></div>
       <div class="heroActions">
-        <a class="btn btnPrimary" id="heroOpenDrive" href="#" target="_blank" rel="noopener">Открыть в Google Drive</a>
-        <button class="btnSoft" id="heroSelect" type="button">Выбрать</button>
+        <a class="btn btnPrimary" id="heroOpenDrive" href="#" target="_blank" rel="noopener">Відкрити в Google Drive</a>
+        <button class="btnSoft" id="heroSelect" type="button">Вибрати</button>
       </div>
     </section>
 
     <section class="player" id="player" hidden>
-      <div class="now" id="now">Ничего не выбрано</div>
+      <div class="now" id="now">Нічого не вибрано</div>
       <audio id="audio" controls preload="metadata" playsinline></audio>
       <div class="controls">
-        <button id="prev" type="button" title="Предыдущая сказка">◀ Предыдущая</button>
-        <button id="next" type="button" title="Следующая сказка">Следующая ▶</button>
+        <button id="prev" type="button" title="Попередній запис">◀ Попередня</button>
+        <button id="next" type="button" title="Наступний запис">Наступна ▶</button>
         <button id="back10" type="button" title="-10 секунд">↺ -10с</button>
         <button id="fwd30" type="button" title="+30 секунд">↻ +30с</button>
-        <a class="btn" id="openDrive" href="#" target="_blank" rel="noopener">Открыть в Google Drive</a>
+        <a class="btn" id="openDrive" href="#" target="_blank" rel="noopener">Відкрити в Google Drive</a>
       </div>
       <div class="statusRow">
         <span class="pill" id="status">готово</span>
@@ -348,8 +349,8 @@
 
     <section class="feedSection">
       <div class="sectionTop">
-        <h2 id="feedTitle">Последние записи</h2>
-        <button class="refreshBtn" id="refreshBtn" type="button">Обновить</button>
+        <h2 id="feedTitle">Останні записи</h2>
+        <button class="refreshBtn" id="refreshBtn" type="button">Оновити</button>
       </div>
       <div class="list" id="list"></div>
     </section>
@@ -386,6 +387,55 @@
   </script>
   <script>
     var I18N = {
+      uk: {
+        appTitle: 'Казки Максиму від тата',
+        pageSubtitle: 'Останні записи відкриваються в Google Drive. Це надійніше на iPhone та Android.',
+        langLabel: 'Мова',
+        latestBadge: 'Нове',
+        latestStories: 'Останні записи',
+        nowNothingSelected: 'Нічого не вибрано',
+        buttonPrev: '◀ Попередня',
+        buttonNext: 'Наступна ▶',
+        buttonPrevTitle: 'Попередній запис',
+        buttonNextTitle: 'Наступний запис',
+        buttonBack: '↺ -10с',
+        buttonFwd: '↻ +30с',
+        buttonBackTitle: '-10 секунд',
+        buttonFwdTitle: '+30 секунд',
+        buttonSelect: 'Вибрати',
+        buttonSelectTrack: 'Вибрати запис',
+        buttonRefresh: 'Оновити',
+        openInDriveLabel: 'Відкрити в Google Drive',
+        openLatestLabel: 'Відкрити останній запис',
+        listenInBrowserLabel: 'Слухати тут',
+        continueInDriveLabel: 'Відкрити в Drive',
+        statusReady: 'готово',
+        statusLoading: 'завантаження...',
+        statusPlaying: 'відтворюється',
+        statusPressPlay: 'натисніть Play',
+        statusError: 'відкрийте в Drive',
+        statusNoFiles: 'немає файлів',
+        statusEnded: 'кінець',
+        statusPaused: 'пауза',
+        statusBuffering: 'буферизація...',
+        statusNetwork: 'мережа...',
+        uploadedAt: 'Завантажено: {date}',
+        openInDriveHint: 'Відкрийте запис у Google Drive для найнадійнішого відтворення.',
+        playbackUnavailableHint: 'Відкрийте запис у Google Drive. Вбудований плеєр вимкнений за замовчуванням для кращої сумісності.',
+        noFilesInFolder: 'У папці немає файлів',
+        defaultTrackTitle: 'Казка',
+        debugTitle: 'Debug',
+        debugHint: '(toggle in CONFIG)',
+        pagerFirst: '«',
+        pagerPrev: '‹',
+        pagerNext: '›',
+        pagerLast: '»',
+        pagerInfo: 'Сторінка {current} з {total}',
+        today: 'Сьогодні',
+        yesterday: 'Учора',
+        dayBeforeYesterday: 'Позавчора',
+        byBook: 'Книга: {book}'
+      },
       ru: {
         appTitle: 'Казки Максиму від папи',
         pageSubtitle: 'Последние записи открываются в Google Drive. Это надежнее на iPhone и Android.',
@@ -487,7 +537,7 @@
     };
 
     var CONFIG = {
-      defaultLanguage: 'ru',
+      defaultLanguage: 'uk',
       rememberLanguage: true,
       itemsPerPage: 10,
       playbackMode: 'driveOnly',
@@ -530,7 +580,7 @@
     }
 
     var ITEMS = parseItemsFromDom();
-    var state = { flat: [], currentIndex: -1, currentPage: 1, lang: 'ru' };
+    var state = { flat: [], currentIndex: -1, currentPage: 1, lang: 'uk' };
 
     function $(id) { return document.getElementById(id); }
     var audio = $('audio');
@@ -581,8 +631,8 @@
 
     function setStatus(text) { statusEl.textContent = text; }
     function t(key, vars) {
-      var langPack = I18N[state.lang] || I18N[CONFIG.defaultLanguage] || I18N.ru;
-      var fallback = I18N.ru || {};
+      var langPack = I18N[state.lang] || I18N[CONFIG.defaultLanguage] || I18N.uk;
+      var fallback = I18N.uk || {};
       var raw = Object.prototype.hasOwnProperty.call(langPack, key) ? langPack[key] : fallback[key];
       var text = raw == null ? key : String(raw);
       if (!vars) return text;
@@ -647,7 +697,10 @@
       } catch (e) {}
     }
     function getCompactDateFormatter(lang) {
-      return new Intl.DateTimeFormat(lang === 'ru' ? 'ru-RU' : 'en-US', {
+      var locale = 'en-US';
+      if (lang === 'uk') locale = 'uk-UA';
+      else if (lang === 'ru') locale = 'ru-RU';
+      return new Intl.DateTimeFormat(locale, {
         weekday: 'short',
         day: 'numeric',
         month: 'short',

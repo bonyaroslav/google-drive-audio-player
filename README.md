@@ -7,7 +7,7 @@ A tiny **Google-only** web app that lists audio files from a Google Drive folder
 - Renders a web page (Apps Script Web App) with:
   - Drive-first recent-feed layout optimized for phones
   - Primary “Open in Google Drive” action for each item
-  - RU/EN UI switcher (RU default)
+  - UA/RU/EN UI switcher (Ukrainian default)
   - Relative localized dates (`Today` / `Yesterday` / compact date)
   - Pagination with large controls when more than one page exists
   - Refresh button for newly uploaded files
