@@ -9,7 +9,7 @@
 const BACKEND_CONFIG = {
   timezone: 'Europe/Madrid',
   cacheSeconds: 120,
-  maxFiles: 10,
+  maxFiles: 100,
   allowedExtensions: ['.mp3', '.ogg', '.m4a'],
   defaultBook: 'Казки'
 };

@@ -24,14 +24,14 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
   - Drive-first recent-feed layout optimized for phones
   - Primary “Open in Google Drive” action for each item
   - UA/RU/EN UI switcher (Ukrainian default)
-  - Language preference persisted in cookies and `localStorage`
+  - Language preference persisted in cookies and `localStorage` with Ukrainian as the default on fresh clients
   - Items grouped by book name parsed from the filename prefix before the first `.`
   - Relative localized dates (`Today` / `Yesterday` / compact date)
-  - Pagination with large controls when more than one page exists
+  - Pagination with large controls and 10 items per page
   - Refresh button for newly uploaded files
   - Optional experimental HTML5 `<audio>` mode kept behind frontend config
 - Shows newest files first; auto-generates episode numbering (oldest = #1)
-- Limits backend output to the newest 10 files by default
+- Loads a recent backend window and shows the newest 10 files on the first page
 
 ## Architecture (high level)
 - **Storage:** Google Drive folder contains audio files

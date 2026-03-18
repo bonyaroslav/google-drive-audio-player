@@ -40,7 +40,7 @@ Notes:
   - pagination (`itemsPerPage`, default `10`) with top + bottom pager controls
   - autoplay-on-select (best-effort), auto-next on ended when experimental audio is enabled
   - seek step buttons (e.g., -10s/+30s) in experimental audio mode
-  - UI language options (`uk`/`ru`/`en`) with Ukrainian default; selected language persisted in cookies and `localStorage`
+  - UI language options (`uk`/`ru`/`en`) with Ukrainian default on fresh clients; selected language persisted in versioned cookies and `localStorage`
   - optional resume position via `localStorage`
   - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
   - recent-feed layout with featured latest item, large card actions, refresh affordance, and iPhone-first sizing
@@ -68,7 +68,7 @@ Notes:
 - Frontend data path: parse `<script type="application/json" id="itemsData">`.
 - Optional caching:
   - `CacheService` with small TTL (e.g., 120s) to reduce Drive calls.
-- Backend payload is limited to the newest `10` files by default before returning `itemsJson`.
+- Backend payload is limited to a recent window (`100` by default) before returning `itemsJson`; frontend paging shows `10` items per page.
 
 ---
 
