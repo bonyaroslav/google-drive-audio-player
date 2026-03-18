@@ -11,7 +11,7 @@ const BACKEND_CONFIG = {
   cacheSeconds: 120,
   maxFiles: 10,
   allowedExtensions: ['.mp3', '.ogg', '.m4a'],
-  defaultBook: 'Сказки'
+  defaultBook: 'Казки'
 };
 
 function doGet() {
@@ -21,7 +21,7 @@ function doGet() {
   tpl.buildId = Utilities.formatDate(new Date(), BACKEND_CONFIG.timezone, "yyyy-MM-dd HH:mm:ss");
 
   return tpl.evaluate()
-    .setTitle('Сказки')
+    .setTitle('Казки')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -85,11 +85,11 @@ function getItems_() {
   return out;
 }
 
-// Naming convention support: "Book Title. Chapter 1-3.mp3"
+// Naming convention support: "Book Title.Chapter 1-3.mp3" or "Book Title. Chapter 1-3.mp3"
 function parseBook_(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
-  const m = base.match(/^(.+?)\.\s+(.+)$/);
-  if (m) return m[1].trim();
+  const dotIndex = base.indexOf('.');
+  if (dotIndex > 0) return base.slice(0, dotIndex).trim();
   return BACKEND_CONFIG.defaultBook;
 }
 
@@ -103,8 +103,11 @@ function getFolderId_() {
 
 function parseTitle_(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
-  const m = base.match(/^(.+?)\.\s+(.+)$/);
-  if (m) return m[2].trim() || base;
+  const dotIndex = base.indexOf('.');
+  if (dotIndex > 0) {
+    const title = base.slice(dotIndex + 1).trim();
+    return title || base;
+  }
   return base;
 }
 

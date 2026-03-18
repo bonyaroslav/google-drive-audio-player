@@ -40,11 +40,12 @@ Notes:
   - pagination (`itemsPerPage`, default `10`) with top + bottom pager controls
   - autoplay-on-select (best-effort), auto-next on ended when experimental audio is enabled
   - seek step buttons (e.g., -10s/+30s) in experimental audio mode
-  - UI language options (`uk`/`ru`/`en`) with Ukrainian default; selected language persisted in `localStorage`
+  - UI language options (`uk`/`ru`/`en`) with Ukrainian default; selected language persisted in cookies and `localStorage`
   - optional resume position via `localStorage`
   - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
   - recent-feed layout with featured latest item, large card actions, refresh affordance, and iPhone-first sizing
-  - list actions: primary button opens Google Drive in a new tab/window; embedded browser playback is experimental only
+  - list actions: primary button opens Google Drive in a new tab/window; explicit "Select record" buttons are removed
+  - items are grouped by parsed `book` name (filename prefix before the first `.`)
 - Defensive rendering:
   - avoid `innerHTML` for user-controlled strings; use DOM + `textContent`.
 - Reliability UX:
@@ -62,7 +63,7 @@ Notes:
 - Backend configuration is centralized in `BACKEND_CONFIG` (`maxFiles`, `allowedExtensions`, `cacheSeconds`, timezone, defaults).
 - Folder source: Script Property `FOLDER_ID` (required). `Code.gs` throws a clear error if missing.
 - Parses book/title from filename pattern:
-  - strict split only by `Book. Title.ext` (dot + space). If pattern is absent, item falls back to default book and full base filename as title.
+  - split by the first `.` in the base filename. Text before the first dot is `book`; text after it is `title`. If the dot is absent, item falls back to default book and full base filename as title.
 - Injects JSON into template using `safeJson_()` (escape for `<script>` context, including `<`, `>`, `&`, `U+2028`, `U+2029`).
 - Frontend data path: parse `<script type="application/json" id="itemsData">`.
 - Optional caching:

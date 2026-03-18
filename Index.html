@@ -134,6 +134,16 @@
       flex-wrap: wrap;
       gap: 10px;
     }
+    .bookGroup {
+      display: grid;
+      gap: 12px;
+    }
+    .bookHeading {
+      margin: 4px 0 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+    }
     button,
     a.btn {
       display: inline-flex;
@@ -322,7 +332,6 @@
       <div class="heroMeta" id="heroMeta"></div>
       <div class="heroActions">
         <a class="btn btnPrimary" id="heroOpenDrive" href="#" target="_blank" rel="noopener">Відкрити в Google Drive</a>
-        <button class="btnSoft" id="heroSelect" type="button">Вибрати</button>
       </div>
     </section>
 
@@ -553,6 +562,7 @@
       debug: false,
       logToConsole: false
     };
+    var COOKIE_MAX_AGE_SECONDS = 31536000;
 
     function isDebugEnabled() {
       var q = String(window.location.search || '');
@@ -601,7 +611,6 @@
     var heroTitle = $('heroTitle');
     var heroMeta = $('heroMeta');
     var heroOpenDrive = $('heroOpenDrive');
-    var heroSelect = $('heroSelect');
     var pageSubtitle = $('pageSubtitle');
     var feedTitle = $('feedTitle');
     var refreshBtn = $('refreshBtn');
@@ -647,6 +656,8 @@
     function loadPreferredLang() {
       if (!CONFIG.rememberLanguage) return CONFIG.defaultLanguage;
       try {
+        var cookieLang = readCookie('uiLang');
+        if (cookieLang) return normalizeLang(cookieLang);
         return normalizeLang(localStorage.getItem('uiLang:v1'));
       } catch (e) {
         return CONFIG.defaultLanguage;
@@ -654,9 +665,18 @@
     }
     function savePreferredLang(lang) {
       if (!CONFIG.rememberLanguage) return;
+      writeCookie('uiLang', lang, COOKIE_MAX_AGE_SECONDS);
       try {
         localStorage.setItem('uiLang:v1', lang);
       } catch (e) {}
+    }
+    function readCookie(name) {
+      var escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var m = document.cookie.match(new RegExp('(?:^|; )' + escaped + '=([^;]*)'));
+      return m ? decodeURIComponent(m[1]) : '';
+    }
+    function writeCookie(name, value, maxAgeSeconds) {
+      document.cookie = name + '=' + encodeURIComponent(value) + '; path=/; max-age=' + String(maxAgeSeconds) + '; SameSite=Lax';
     }
     function safeText(s) { return s == null ? '' : String(s); }
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -762,7 +782,6 @@
       feedTitle.textContent = t('latestStories');
       refreshBtn.textContent = t('buttonRefresh');
       heroOpenDrive.textContent = t('openLatestLabel');
-      heroSelect.textContent = isExperimentalAudioMode() ? t('listenInBrowserLabel') : t('buttonSelect');
       now.textContent = t('nowNothingSelected');
       btnPrev.textContent = t('buttonPrev');
       btnPrev.title = t('buttonPrevTitle');
@@ -795,7 +814,6 @@
       heroMeta.appendChild(makeEl('span', null, t('uploadedAt', { date: track.displayDate })));
       if (track.book) heroMeta.appendChild(makeEl('span', null, t('byBook', { book: track.book })));
       heroOpenDrive.href = track.viewUrl || '#';
-      heroSelect.textContent = isExperimentalAudioMode() ? t('listenInBrowserLabel') : t('buttonSelect');
     }
     function setAudioSource(url) {
       audio.pause();
@@ -928,9 +946,17 @@
       var startIdx = (state.currentPage - 1) * pageSize;
       var endIdx = Math.min(state.flat.length, startIdx + pageSize);
       var frag = document.createDocumentFragment();
+      var currentGroup = null;
+      var currentBook = '';
 
       for (var idx = startIdx; idx < endIdx; idx++) {
         var track = state.flat[idx];
+        if (!currentGroup || currentBook !== track.book) {
+          currentBook = track.book;
+          currentGroup = makeEl('section', 'bookGroup');
+          if (currentBook) currentGroup.appendChild(makeEl('h3', 'bookHeading', currentBook));
+          frag.appendChild(currentGroup);
+        }
         var card = makeEl('article', 'card');
         card.setAttribute('data-idx', String(idx));
 
@@ -944,17 +970,6 @@
         var actions = makeEl('div', 'cardActions');
         actions.appendChild(makeLink(t('openInDriveLabel'), track.viewUrl, { newTab: true, primary: true }));
 
-        (function (capturedIdx) {
-          var button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'cardPrimary';
-          button.textContent = isExperimentalAudioMode() ? t('listenInBrowserLabel') : t('buttonSelectTrack');
-          button.addEventListener('click', function () {
-            setCurrent(capturedIdx, isExperimentalAudioMode());
-          });
-          actions.appendChild(button);
-        })(idx);
-
         card.appendChild(actions);
         (function (capturedIdx) {
           card.addEventListener('click', function (e) {
@@ -963,7 +978,7 @@
             setCurrent(capturedIdx, false);
           });
         })(idx);
-        frag.appendChild(card);
+        currentGroup.appendChild(card);
       }
 
       listEl.appendChild(frag);
@@ -971,21 +986,37 @@
     }
     function buildFlatTracks(items) {
       state.flat = [];
+      var groupedOrder = [];
+      var groupedMap = {};
       for (var i = 0; i < items.length; i++) {
-        var it = items[i];
-        var displayNumber = null;
-        if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
-        var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? ('#' + displayNumber + '. ') : '';
-        var title = safeText(it.title || it.name || t('defaultTrackTitle'));
-        var track = {};
-        for (var k in it) {
-          if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
+        var raw = items[i];
+        var book = safeText(raw.book || '');
+        if (!Object.prototype.hasOwnProperty.call(groupedMap, book)) {
+          groupedMap[book] = [];
+          groupedOrder.push(book);
         }
-        track.book = safeText(it.book || '');
-        track.name = safeText(it.name || '');
-        track.displayTitle = numberPart + title;
-        track.displayDate = formatDisplayDate(it.createdMs || 0);
-        state.flat.push(track);
+        groupedMap[book].push(raw);
+      }
+
+      for (var g = 0; g < groupedOrder.length; g++) {
+        var groupBook = groupedOrder[g];
+        var arr = groupedMap[groupBook] || [];
+        for (var j = 0; j < arr.length; j++) {
+          var it = arr[j];
+          var displayNumber = null;
+          if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
+          var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? ('#' + displayNumber + '. ') : '';
+          var title = safeText(it.title || it.name || t('defaultTrackTitle'));
+          var track = {};
+          for (var k in it) {
+            if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
+          }
+          track.book = safeText(it.book || '');
+          track.name = safeText(it.name || '');
+          track.displayTitle = numberPart + title;
+          track.displayDate = formatDisplayDate(it.createdMs || 0);
+          state.flat.push(track);
+        }
       }
     }
     function render(preserveCurrent) {
@@ -1027,9 +1058,6 @@
       });
       btnFwd.addEventListener('click', function () {
         audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds;
-      });
-      heroSelect.addEventListener('click', function () {
-        if (state.flat.length) setCurrent(0, isExperimentalAudioMode());
       });
       refreshBtn.addEventListener('click', function () {
         window.location.reload();
