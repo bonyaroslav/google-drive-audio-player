@@ -6,17 +6,19 @@
  * - Injects itemsJson into Index.html template
  */
 
-const TZ = 'Europe/Madrid';
-
-// Optional: cache listing to reduce Drive calls.
-// Set to 0 to disable caching.
-const CACHE_SECONDS = 120;
+const BACKEND_CONFIG = {
+  timezone: 'Europe/Madrid',
+  cacheSeconds: 120,
+  maxFiles: 10,
+  allowedExtensions: ['.mp3', '.ogg', '.m4a'],
+  defaultBook: 'Сказки'
+};
 
 function doGet() {
   const items = getItemsCached_();
   const tpl = HtmlService.createTemplateFromFile('Index');
   tpl.itemsJson = safeJson_(items);
-  tpl.buildId = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd HH:mm:ss");
+  tpl.buildId = Utilities.formatDate(new Date(), BACKEND_CONFIG.timezone, "yyyy-MM-dd HH:mm:ss");
 
   return tpl.evaluate()
     .setTitle('Сказки')
@@ -24,7 +26,7 @@ function doGet() {
 }
 
 function getItemsCached_() {
-  if (!CACHE_SECONDS || CACHE_SECONDS <= 0) return getItems_();
+  if (!BACKEND_CONFIG.cacheSeconds || BACKEND_CONFIG.cacheSeconds <= 0) return getItems_();
 
   const cache = CacheService.getScriptCache();
   const cached = cache.get('itemsJson_v1');
@@ -33,7 +35,7 @@ function getItemsCached_() {
   }
 
   const items = getItems_();
-  cache.put('itemsJson_v1', JSON.stringify(items), CACHE_SECONDS);
+  cache.put('itemsJson_v1', JSON.stringify(items), BACKEND_CONFIG.cacheSeconds);
   return items;
 }
 
@@ -49,7 +51,7 @@ function getItems_() {
     const lower = name.toLowerCase();
 
     // Only audio formats you care about
-    if (!(lower.endsWith('.mp3') || lower.endsWith('.ogg') || lower.endsWith('.m4a'))) continue;
+    if (!isAllowedAudioFile_(lower)) continue;
 
     const created = f.getDateCreated();         // stable for "when it first appeared"
     const id = f.getId();
@@ -58,11 +60,11 @@ function getItems_() {
       id,
       name,
       createdMs: created.getTime(),
-      createdStr: Utilities.formatDate(created, TZ, 'yyyy-MM-dd'),
+      createdStr: Utilities.formatDate(created, BACKEND_CONFIG.timezone, 'yyyy-MM-dd'),
       book: parseBook_(name),
       title: parseTitle_(name),
-      // Often works for in-browser playback + download. If it doesn't on a device,
-      // the Drive fallback link still works.
+      // Kept for optional experimental HTML audio mode.
+      // Default UX opens Google Drive's viewer for better mobile reliability.
       url: `https://drive.google.com/uc?export=download&id=${id}`,
       viewUrl: `https://drive.google.com/file/d/${id}/view`
     });
@@ -75,6 +77,11 @@ function getItems_() {
   // Display: newest first
   out.sort((a, b) => b.createdMs - a.createdMs);
 
+  const maxFiles = Number(BACKEND_CONFIG.maxFiles);
+  if (isFinite(maxFiles) && maxFiles > 0 && out.length > maxFiles) {
+    return out.slice(0, Math.floor(maxFiles));
+  }
+
   return out;
 }
 
@@ -83,7 +90,7 @@ function parseBook_(filename) {
   const base = filename.replace(/\.[^.]+$/, '');
   const m = base.match(/^(.+?)\.\s+(.+)$/);
   if (m) return m[1].trim();
-  return 'Сказки';
+  return BACKEND_CONFIG.defaultBook;
 }
 
 function getFolderId_() {
@@ -99,6 +106,14 @@ function parseTitle_(filename) {
   const m = base.match(/^(.+?)\.\s+(.+)$/);
   if (m) return m[2].trim() || base;
   return base;
+}
+
+function isAllowedAudioFile_(lowerName) {
+  const extensions = BACKEND_CONFIG.allowedExtensions || [];
+  for (let i = 0; i < extensions.length; i += 1) {
+    if (lowerName.endsWith(String(extensions[i]).toLowerCase())) return true;
+  }
+  return false;
 }
 
 // IMPORTANT: protect the template injection from breaking <script> content

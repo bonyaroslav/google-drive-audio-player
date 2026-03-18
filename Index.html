@@ -2,967 +2,1016 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Сказки</title>
-
-  <!--
-    Index.html (hardened / maintainable)
-    Goals:
-    - Single "CONFIG" section for tuning
-    - Defensive rendering (avoid innerHTML injection from filenames)
-    - Optional debug panel/logging
-    - Better playback UX: auto-next, resume position, seek buttons
-    - Clear separation: data -> state -> UI
-  -->
-
   <style>
     :root {
-      --maxWidth: 860px;
-      --radius: 12px;
-      --border: #ddd;
-      --borderSoft: #eee;
-      --textSoft: #666;
-      --bg: #fafafa;
-      --card: #fff;
-      --btnBorder: #ccc;
-      --shadow: 0 1px 2px rgba(0,0,0,.04);
-      --gap: 10px;
-      --pad: 12px;
-      --h1: 20px;
+      --maxWidth: 880px;
+      --radius: 18px;
+      --radiusSoft: 14px;
+      --border: #d7d2cb;
+      --borderSoft: #ece6de;
+      --text: #1f1a17;
+      --textSoft: #6a625c;
+      --bg: linear-gradient(180deg, #f7f1e8 0%, #fbf8f3 100%);
+      --card: rgba(255, 252, 247, 0.94);
+      --cardStrong: #fffaf2;
+      --accent: #1f6b5f;
+      --accentSoft: #dff1ec;
+      --shadow: 0 10px 24px rgba(57, 44, 34, 0.08);
+      --shadowSoft: 0 4px 10px rgba(57, 44, 34, 0.05);
+      --touch: 48px;
+      --h1: 28px;
       --h2: 18px;
-      --meta: 12px;
+      --meta: 13px;
     }
-
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 16px; background: var(--bg); }
-    .wrap { max-width: var(--maxWidth); margin: 0 auto; }
-    .topBar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 12px; }
-    h1 { font-size: var(--h1); margin: 0; }
-    .langWrap { display: flex; align-items: center; gap: 6px; }
-    .langWrap label { font-size: 13px; color: var(--textSoft); }
-    .langWrap select {
-      border: 1px solid var(--btnBorder);
-      border-radius: 8px;
-      background: #fff;
-      padding: 6px 8px;
-      font-size: 14px;
+    * { box-sizing: border-box; }
+    html { background: #f7f1e8; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-text-size-adjust: 100%;
     }
-    .player { border: 1px solid var(--border); border-radius: var(--radius); padding: var(--pad); background: var(--card); box-shadow: var(--shadow); }
-    .now { font-weight: 700; margin-bottom: 8px; }
-    audio { width: 100%; }
-    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    button, a.btn {
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--btnBorder);
-      background: #fff;
-      text-decoration: none;
-      color: #000;
-      cursor: pointer;
-      user-select: none;
+    .wrap {
+      max-width: var(--maxWidth);
+      margin: 0 auto;
+      padding: max(14px, env(safe-area-inset-top)) 14px max(20px, env(safe-area-inset-bottom));
     }
-    button[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .list { margin-top: 18px; }
-    .book { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--borderSoft); }
-    .book h2 { margin: 0 0 10px; font-size: var(--h2); }
-    .item { border: 1px solid var(--borderSoft); border-radius: var(--radius); padding: 10px; margin: 8px 0; background: var(--card); box-shadow: var(--shadow); }
-    .item.active { border-color: #999; }
-    .meta { font-size: var(--meta); color: var(--textSoft); margin-top: 6px; }
-    .row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-    .title { font-weight: 600; }
-    .links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
-    .links a { font-size: 14px; }
-    .pill { font-size: 12px; color: var(--textSoft); border: 1px solid var(--borderSoft); padding: 2px 8px; border-radius: 999px; }
-
-    .debug {
-      margin-top: 12px;
-      border: 1px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 10px;
-      background: #fff;
-      display: none;
-    }
-    .debug pre { margin: 8px 0 0; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
-
-    .pager {
-      margin-top: 14px;
+    .topBar {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      padding: 10px;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .titleBlock h1 {
+      margin: 0;
+      font-size: var(--h1);
+      line-height: 1.15;
+    }
+    .subtitle {
+      margin-top: 6px;
+      color: var(--textSoft);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .langWrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+      min-width: 82px;
+    }
+    .langWrap label,
+    .meta,
+    .buildInfo {
+      color: var(--textSoft);
+      font-size: var(--meta);
+    }
+    .langWrap select,
+    .refreshBtn,
+    button,
+    a.btn {
+      min-height: var(--touch);
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: var(--shadowSoft);
+    }
+    .langWrap select {
+      padding: 0 12px;
+      width: 82px;
+    }
+    .hero,
+    .player,
+    .feedSection,
+    .pager {
       border: 1px solid var(--borderSoft);
       border-radius: var(--radius);
       background: var(--card);
       box-shadow: var(--shadow);
     }
-    .pager .pageInfo {
-      font-size: 14px;
+    .hero {
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      background: var(--accentSoft);
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .heroTitle {
+      margin: 12px 0 8px;
+      font-size: 22px;
+      line-height: 1.25;
+    }
+    .heroMeta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
       color: var(--textSoft);
-      margin: 0 10px;
+      font-size: 14px;
     }
-    .pager .pagerBtn {
-      min-width: 46px;
-      padding: 10px 14px;
-      font-size: 16px;
+    .heroActions,
+    .controls,
+    .cardActions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    button,
+    a.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      font-size: 15px;
       font-weight: 600;
-      border: 1px solid var(--btnBorder);
-      border-radius: 10px;
+      user-select: none;
+    }
+    .btnPrimary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btnSoft {
       background: #fff;
-      cursor: pointer;
     }
-    .pager .pagerBtn.active {
-      background: #e8eefc;
-      border-color: #9fb3ea;
-    }
-    .pager .pagerBtn[disabled] {
+    button[disabled] {
       opacity: 0.45;
       cursor: not-allowed;
+      box-shadow: none;
+    }
+    .player {
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .player[hidden],
+    .pager[hidden],
+    .hero[hidden] { display: none; }
+    .now {
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    audio {
+      width: 100%;
+      min-height: 44px;
+    }
+    .statusRow {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid var(--borderSoft);
+      color: var(--textSoft);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .feedSection { padding: 16px; }
+    .sectionTop {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .sectionTop h2 {
+      margin: 0;
+      font-size: var(--h2);
+    }
+    .refreshBtn {
+      padding: 0 14px;
+      font-size: 14px;
+      font-weight: 600;
+      background: #fff;
+    }
+    .list {
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      display: grid;
+      gap: 10px;
+      padding: 14px;
+      border-radius: var(--radiusSoft);
+      border: 1px solid var(--borderSoft);
+      background: var(--cardStrong);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .card.active {
+      border-color: #8bb8af;
+      box-shadow: 0 0 0 3px rgba(31, 107, 95, 0.09);
+    }
+    .cardHeader {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .cardTitle {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .cardDate {
+      color: var(--textSoft);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .cardBook {
+      color: var(--textSoft);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .cardPrimary { width: 100%; }
+    .debug {
+      margin-top: 12px;
+      border: 1px dashed var(--border);
+      border-radius: var(--radiusSoft);
+      padding: 10px;
+      background: #fff;
+      display: none;
+    }
+    .debug pre {
+      margin: 8px 0 0;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .pager {
+      margin-top: 14px;
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pagerBtn {
+      min-width: 46px;
+      min-height: 46px;
+      padding: 0 12px;
+    }
+    .pagerBtn.active {
+      background: var(--accentSoft);
+      border-color: #8bb8af;
+    }
+    .pageInfo {
+      color: var(--textSoft);
+      font-size: 14px;
+      margin-left: 4px;
+    }
+    @media (max-width: 430px) {
+      .wrap { padding-left: 12px; padding-right: 12px; }
+      .topBar { align-items: stretch; }
+      .langWrap { align-items: stretch; }
+      .langWrap select { width: 100%; }
+      .heroTitle { font-size: 20px; }
+      .cardHeader { flex-direction: column; }
+      .cardDate { white-space: normal; }
+      .heroActions > *,
+      .controls > *,
+      .cardActions > * { flex: 1 1 auto; }
     }
   </style>
 </head>
-
 <body>
-<div class="wrap">
-  <div class="topBar">
-    <h1 id="pageTitle">Сказки</h1>
-    <div class="langWrap">
-      <label for="langSelect" id="langLabel">Язык</label>
-      <select id="langSelect">
-        <option value="ru">RU</option>
-        <option value="en">EN</option>
-      </select>
+  <div class="wrap">
+    <div class="topBar">
+      <div class="titleBlock">
+        <h1 id="pageTitle">Сказки</h1>
+        <div class="subtitle" id="pageSubtitle"></div>
+      </div>
+      <div class="langWrap">
+        <label for="langSelect" id="langLabel">Язык</label>
+        <select id="langSelect">
+          <option value="ru">RU</option>
+          <option value="en">EN</option>
+        </select>
+      </div>
     </div>
+
+    <section class="hero" id="hero">
+      <div class="eyebrow" id="heroEyebrow"></div>
+      <h2 class="heroTitle" id="heroTitle">Ничего не выбрано</h2>
+      <div class="heroMeta" id="heroMeta"></div>
+      <div class="heroActions">
+        <a class="btn btnPrimary" id="heroOpenDrive" href="#" target="_blank" rel="noopener">Открыть в Google Drive</a>
+        <button class="btnSoft" id="heroSelect" type="button">Выбрать</button>
+      </div>
+    </section>
+
+    <section class="player" id="player" hidden>
+      <div class="now" id="now">Ничего не выбрано</div>
+      <audio id="audio" controls preload="metadata" playsinline></audio>
+      <div class="controls">
+        <button id="prev" type="button" title="Предыдущая сказка">◀ Предыдущая</button>
+        <button id="next" type="button" title="Следующая сказка">Следующая ▶</button>
+        <button id="back10" type="button" title="-10 секунд">↺ -10с</button>
+        <button id="fwd30" type="button" title="+30 секунд">↻ +30с</button>
+        <a class="btn" id="openDrive" href="#" target="_blank" rel="noopener">Открыть в Google Drive</a>
+      </div>
+      <div class="statusRow">
+        <span class="pill" id="status">готово</span>
+        <div class="meta" id="hint"></div>
+      </div>
+      <div class="buildInfo" id="buildInfo">build: <?= buildId ?></div>
+      <div class="debug" id="debugBox">
+        <div class="meta"><b id="debugTitle">Debug</b> <span id="debugHint">(toggle in CONFIG)</span></div>
+        <pre id="debugOut"></pre>
+      </div>
+    </section>
+
+    <section class="feedSection">
+      <div class="sectionTop">
+        <h2 id="feedTitle">Последние записи</h2>
+        <button class="refreshBtn" id="refreshBtn" type="button">Обновить</button>
+      </div>
+      <div class="list" id="list"></div>
+    </section>
+
+    <div class="pager" id="pagerTop"></div>
+    <div class="pager" id="pagerBottom"></div>
   </div>
 
-  <div class="player">
-    <div class="now" id="now">Ничего не выбрано</div>
+  <script id="itemsData" type="application/json"><?!= itemsJson ?></script>
+  <script>
+    (function () {
+      var logs = [];
+      function push(msg) {
+        try {
+          var line = '[boot] ' + msg;
+          logs.push(line);
+          if (window.console && console.log) console.log(line);
+        } catch (e) {}
+      }
+      window.__BOOT_LOGS = logs;
+      window.__bootLog = push;
+      window.addEventListener('error', function (ev) {
+        var msg = ev && ev.message ? ev.message : 'unknown error';
+        var src = ev && ev.filename ? ev.filename : 'no-file';
+        var ln = ev && ev.lineno ? ev.lineno : 0;
+        push('window.error: ' + msg + ' @ ' + src + ':' + ln);
+      });
+      window.addEventListener('unhandledrejection', function (ev) {
+        var reason = ev && ev.reason ? String(ev.reason) : 'unknown rejection';
+        push('unhandledrejection: ' + reason);
+      });
+      push('bootstrap loaded; build=<?= buildId ?>');
+    })();
+  </script>
+  <script>
+    var I18N = {
+      ru: {
+        appTitle: 'Казки Максиму від папи',
+        pageSubtitle: 'Последние записи открываются в Google Drive. Это надежнее на iPhone и Android.',
+        langLabel: 'Язык',
+        latestBadge: 'Сейчас',
+        latestStories: 'Последние записи',
+        nowNothingSelected: 'Ничего не выбрано',
+        buttonPrev: '◀ Предыдущая',
+        buttonNext: 'Следующая ▶',
+        buttonPrevTitle: 'Предыдущая запись',
+        buttonNextTitle: 'Следующая запись',
+        buttonBack: '↺ -10с',
+        buttonFwd: '↻ +30с',
+        buttonBackTitle: '-10 секунд',
+        buttonFwdTitle: '+30 секунд',
+        buttonSelect: 'Выбрать',
+        buttonSelectTrack: 'Выбрать запись',
+        buttonRefresh: 'Обновить',
+        openInDriveLabel: 'Открыть в Google Drive',
+        openLatestLabel: 'Открыть последнюю запись',
+        listenInBrowserLabel: 'Слушать здесь',
+        continueInDriveLabel: 'Открыть в Drive',
+        statusReady: 'готово',
+        statusLoading: 'загрузка...',
+        statusPlaying: 'играет',
+        statusPressPlay: 'нажмите Play',
+        statusError: 'откройте в Drive',
+        statusNoFiles: 'нет файлов',
+        statusEnded: 'конец',
+        statusPaused: 'пауза',
+        statusBuffering: 'буфер...',
+        statusNetwork: 'сеть...',
+        uploadedAt: 'Загружено: {date}',
+        openInDriveHint: 'Откройте запись в Google Drive для самого надежного воспроизведения.',
+        playbackUnavailableHint: 'Откройте запись в Google Drive. Встроенный плеер отключен по умолчанию для лучшей совместимости.',
+        noFilesInFolder: 'Нет файлов в папке',
+        defaultTrackTitle: 'Сказка',
+        debugTitle: 'Debug',
+        debugHint: '(toggle in CONFIG)',
+        pagerFirst: '«',
+        pagerPrev: '‹',
+        pagerNext: '›',
+        pagerLast: '»',
+        pagerInfo: 'Страница {current} из {total}',
+        today: 'Сегодня',
+        yesterday: 'Вчера',
+        dayBeforeYesterday: 'Позавчера',
+        byBook: 'Книга: {book}'
+      },
+      en: {
+        appTitle: 'Stories',
+        pageSubtitle: 'Recent recordings open in Google Drive by default. This is more reliable on iPhone and Android.',
+        langLabel: 'Language',
+        latestBadge: 'Latest',
+        latestStories: 'Recent uploads',
+        nowNothingSelected: 'Nothing selected',
+        buttonPrev: '◀ Previous',
+        buttonNext: 'Next ▶',
+        buttonPrevTitle: 'Previous recording',
+        buttonNextTitle: 'Next recording',
+        buttonBack: '↺ -10s',
+        buttonFwd: '↻ +30s',
+        buttonBackTitle: '-10 seconds',
+        buttonFwdTitle: '+30 seconds',
+        buttonSelect: 'Select',
+        buttonSelectTrack: 'Select track',
+        buttonRefresh: 'Refresh',
+        openInDriveLabel: 'Open in Google Drive',
+        openLatestLabel: 'Open latest recording',
+        listenInBrowserLabel: 'Listen here',
+        continueInDriveLabel: 'Open in Drive',
+        statusReady: 'ready',
+        statusLoading: 'loading...',
+        statusPlaying: 'playing',
+        statusPressPlay: 'press Play',
+        statusError: 'open in Drive',
+        statusNoFiles: 'no files',
+        statusEnded: 'ended',
+        statusPaused: 'paused',
+        statusBuffering: 'buffering...',
+        statusNetwork: 'network...',
+        uploadedAt: 'Uploaded: {date}',
+        openInDriveHint: 'Open this recording in Google Drive for the most reliable playback.',
+        playbackUnavailableHint: 'Open this recording in Google Drive. Embedded playback is disabled by default for better compatibility.',
+        noFilesInFolder: 'No files in folder',
+        defaultTrackTitle: 'Story',
+        debugTitle: 'Debug',
+        debugHint: '(toggle in CONFIG)',
+        pagerFirst: '«',
+        pagerPrev: '‹',
+        pagerNext: '›',
+        pagerLast: '»',
+        pagerInfo: 'Page {current} of {total}',
+        today: 'Today',
+        yesterday: 'Yesterday',
+        dayBeforeYesterday: 'Day before yesterday',
+        byBook: 'Book: {book}'
+      }
+    };
 
-    <audio id="audio" controls preload="metadata" playsinline></audio>
+    var CONFIG = {
+      defaultLanguage: 'ru',
+      rememberLanguage: true,
+      itemsPerPage: 10,
+      playbackMode: 'driveOnly',
+      autoplayOnSelect: true,
+      autoplayFirstItem: false,
+      autoNextOnEnded: true,
+      rememberPosition: true,
+      rememberPositionMinSeconds: 8,
+      seekBackSeconds: 10,
+      seekForwardSeconds: 30,
+      showEpisodeNumber: true,
+      episodeNumberMode: 'backendGlobal',
+      debug: false,
+      logToConsole: false
+    };
 
-    <div class="controls">
-      <button id="prev" title="Предыдущая сказка">◀ Предыдущая</button>
-      <button id="next" title="Следующая сказка">Следующая ▶</button>
+    function isDebugEnabled() {
+      var q = String(window.location.search || '');
+      return q.indexOf('debug=1') >= 0;
+    }
+    if (isDebugEnabled()) {
+      CONFIG.debug = true;
+      CONFIG.logToConsole = true;
+    }
 
-      <button id="back10" title="-10 секунд">↺ -10с</button>
-      <button id="fwd30" title="+30 секунд">↻ +30с</button>
-
-      <a class="btn" id="openDrive" href="#" target="_blank" rel="noopener">Открыть в Drive</a>
-      <span class="pill" id="status">готово</span>
-    </div>
-
-    <div class="meta" id="hint"></div>
-    <div class="meta" id="buildInfo">build: <?= buildId ?></div>
-
-    <div class="debug" id="debugBox">
-      <div class="meta"><b id="debugTitle">Debug</b> <span id="debugHint">(toggle in CONFIG)</span></div>
-      <pre id="debugOut"></pre>
-    </div>
-  </div>
-
-  <div class="pager" id="pagerTop"></div>
-  <div class="list" id="list"></div>
-  <div class="pager" id="pagerBottom"></div>
-</div>
-
-<script id="itemsData" type="application/json"><?!= itemsJson ?></script>
-<script>
-  (function () {
-    var logs = [];
-    function push(msg) {
+    function parseItemsFromDom() {
+      if (window.__bootLog) window.__bootLog('parseItemsFromDom:start');
       try {
-        var line = '[boot] ' + msg;
-        logs.push(line);
-        if (window.console && console.log) console.log(line);
-      } catch (e) { /* ignore */ }
+        var node = document.getElementById('itemsData');
+        var raw = node ? node.textContent : '[]';
+        if (window.__bootLog) window.__bootLog('itemsData chars=' + (raw ? raw.length : 0));
+        var parsed = JSON.parse(raw || '[]');
+        if (window.__bootLog) window.__bootLog('parseItemsFromDom:ok items=' + (parsed && parsed.length ? parsed.length : 0));
+        return Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [];
+      } catch (e) {
+        console.error('Failed to parse itemsJson', e);
+        if (window.__bootLog) window.__bootLog('parseItemsFromDom:error ' + (e && e.message ? e.message : String(e)));
+        return [];
+      }
     }
-    window.__BOOT_LOGS = logs;
-    window.__bootLog = push;
 
-    window.addEventListener('error', function (ev) {
-      var msg = ev && ev.message ? ev.message : 'unknown error';
-      var src = ev && ev.filename ? ev.filename : 'no-file';
-      var ln = ev && ev.lineno ? ev.lineno : 0;
-      push('window.error: ' + msg + ' @ ' + src + ':' + ln);
-    });
+    var ITEMS = parseItemsFromDom();
+    var state = { flat: [], currentIndex: -1, currentPage: 1, lang: 'ru' };
 
-    window.addEventListener('unhandledrejection', function (ev) {
-      var reason = ev && ev.reason ? String(ev.reason) : 'unknown rejection';
-      push('unhandledrejection: ' + reason);
-    });
+    function $(id) { return document.getElementById(id); }
+    var audio = $('audio');
+    var player = $('player');
+    var now = $('now');
+    var hint = $('hint');
+    var listEl = $('list');
+    var pagerTop = $('pagerTop');
+    var pagerBottom = $('pagerBottom');
+    var statusEl = $('status');
+    var btnPrev = $('prev');
+    var btnNext = $('next');
+    var btnBack = $('back10');
+    var btnFwd = $('fwd30');
+    var openDrive = $('openDrive');
+    var hero = $('hero');
+    var heroEyebrow = $('heroEyebrow');
+    var heroTitle = $('heroTitle');
+    var heroMeta = $('heroMeta');
+    var heroOpenDrive = $('heroOpenDrive');
+    var heroSelect = $('heroSelect');
+    var pageSubtitle = $('pageSubtitle');
+    var feedTitle = $('feedTitle');
+    var refreshBtn = $('refreshBtn');
+    var langLabelEl = $('langLabel');
+    var langSelect = $('langSelect');
+    var debugBox = $('debugBox');
+    var debugOut = $('debugOut');
+    var debugTitle = $('debugTitle');
+    var debugHint = $('debugHint');
 
-    push('bootstrap loaded; build=<?= buildId ?>');
-  })();
-</script>
-
-<script>
-  var I18N = {
-    ru: {
-      appTitle: 'Казки Максиму від папи',
-      langLabel: 'Язык',
-      nowNothingSelected: 'Ничего не выбрано',
-      buttonPrev: '◀ Предыдущая',
-      buttonNext: 'Следующая ▶',
-      buttonPrevTitle: 'Предыдущая сказка',
-      buttonNextTitle: 'Следующая сказка',
-      buttonBack: '↺ -10с',
-      buttonFwd: '↻ +30с',
-      buttonBackTitle: '-10 секунд',
-      buttonFwdTitle: '+30 секунд',
-      openInDriveLabel: 'Открыть в Google Drive',
-      playInBrowserLabel: '▶ Воспроизвести в браузере',
-      downloadInListLabel: '⬇ Скачать',
-      statusReady: 'готово',
-      statusLoading: 'загрузка...',
-      statusPlaying: 'играет',
-      statusPressPlay: 'нажми Play',
-      statusError: 'ошибка',
-      statusNoFiles: 'нет файлов',
-      statusEnded: 'конец',
-      statusPaused: 'пауза',
-      statusBuffering: 'буфер...',
-      statusNetwork: 'сеть...',
-      uploadedAt: 'Загружено: {date}',
-      sourceProgress: 'Источник {current}/{total}',
-      sourceProgressWithDate: 'Источник {current}/{total} • Загружено: {date}',
-      tryingAnotherUrl: 'пробуем другой URL...',
-      noPlaybackUrl: 'Нет URL для воспроизведения.',
-      notPlayableOpenDrive: 'Не проигрывается в браузере. Нажмите "{label}". ({err})',
-      notPlayable: 'Не проигрывается в браузере. ({err})',
-      openInDriveRecommended: ' (рекомендуется)',
-      noFilesInFolder: 'Нет файлов в папке',
-      defaultTrackTitle: 'Сказка',
-      debugTitle: 'Debug',
-      debugHint: '(toggle in CONFIG)',
-      pagerFirst: '«',
-      pagerPrev: '‹',
-      pagerNext: '›',
-      pagerLast: '»',
-      pagerInfo: 'Страница {current} из {total}'
-    },
-    en: {
-      appTitle: 'Stories',
-      langLabel: 'Language',
-      nowNothingSelected: 'Nothing selected',
-      buttonPrev: '◀ Previous',
-      buttonNext: 'Next ▶',
-      buttonPrevTitle: 'Previous story',
-      buttonNextTitle: 'Next story',
-      buttonBack: '↺ -10s',
-      buttonFwd: '↻ +30s',
-      buttonBackTitle: '-10 seconds',
-      buttonFwdTitle: '+30 seconds',
-      openInDriveLabel: 'Open in Google Drive',
-      playInBrowserLabel: '▶ Play in browser',
-      downloadInListLabel: '⬇ Download',
-      statusReady: 'ready',
-      statusLoading: 'loading...',
-      statusPlaying: 'playing',
-      statusPressPlay: 'press Play',
-      statusError: 'error',
-      statusNoFiles: 'no files',
-      statusEnded: 'ended',
-      statusPaused: 'paused',
-      statusBuffering: 'buffering...',
-      statusNetwork: 'network...',
-      uploadedAt: 'Uploaded: {date}',
-      sourceProgress: 'Source {current}/{total}',
-      sourceProgressWithDate: 'Source {current}/{total} • Uploaded: {date}',
-      tryingAnotherUrl: 'trying another URL...',
-      noPlaybackUrl: 'No playback URL available.',
-      notPlayableOpenDrive: 'Cannot play in browser. Tap "{label}". ({err})',
-      notPlayable: 'Cannot play in browser. ({err})',
-      openInDriveRecommended: ' (recommended)',
-      noFilesInFolder: 'No files in folder',
-      defaultTrackTitle: 'Story',
-      debugTitle: 'Debug',
-      debugHint: '(toggle in CONFIG)',
-      pagerFirst: '«',
-      pagerPrev: '‹',
-      pagerNext: '›',
-      pagerLast: '»',
-      pagerInfo: 'Page {current} of {total}'
+    function log() {
+      var args = Array.prototype.slice.call(arguments);
+      if (CONFIG.logToConsole && console && console.log) console.log.apply(console, ['[stories]'].concat(args));
+      if (window.__BOOT_LOGS) {
+        try {
+          var compact = [];
+          for (var i = 0; i < args.length; i++) compact.push(typeof args[i] === 'string' ? args[i] : JSON.stringify(args[i]));
+          window.__BOOT_LOGS.push('[stories] ' + compact.join(' '));
+        } catch (e) {}
+      }
+      if (CONFIG.debug) {
+        var msg = [];
+        for (var j = 0; j < args.length; j++) msg.push(typeof args[j] === 'string' ? args[j] : JSON.stringify(args[j], null, 2));
+        debugOut.textContent = (debugOut.textContent + '\n' + msg.join(' ')).trim();
+      }
     }
-  };
 
-  var CONFIG = {
-    defaultLanguage: 'ru',
-    rememberLanguage: true,
-    itemsPerPage: 10,
-    autoplayOnSelect: true,
-    autoplayFirstItem: false,
-    autoNextOnEnded: true,
-    rememberPosition: true,
-    rememberPositionMinSeconds: 8,
-    seekBackSeconds: 10,
-    seekForwardSeconds: 30,
-    groupByBook: true,
-    showCreatedAt: true,
-    showDriveLinkInList: true,
-    showDownloadLinkInList: false,
-    showEpisodeNumber: true,
-    episodeNumberMode: 'backendGlobal',
-    fallbackToDriveViewOnError: true,
-    debug: false,
-    logToConsole: false
-  };
-
-  function isDebugEnabled() {
-    var q = String(window.location.search || '');
-    return q.indexOf('debug=1') >= 0;
-  }
-  if (isDebugEnabled()) {
-    CONFIG.debug = true;
-    CONFIG.logToConsole = true;
-  }
-
-  function parseItemsFromDom() {
-    if (window.__bootLog) window.__bootLog('parseItemsFromDom:start');
-    try {
-      var node = document.getElementById('itemsData');
-      var raw = node ? node.textContent : '[]';
-      if (window.__bootLog) window.__bootLog('itemsData chars=' + (raw ? raw.length : 0));
-      var parsed = JSON.parse(raw || '[]');
-      if (window.__bootLog) window.__bootLog('parseItemsFromDom:ok items=' + (parsed && parsed.length ? parsed.length : 0));
-      return Object.prototype.toString.call(parsed) === '[object Array]' ? parsed : [];
-    } catch (e) {
-      console.error('Failed to parse itemsJson', e);
-      if (window.__bootLog) window.__bootLog('parseItemsFromDom:error ' + (e && e.message ? e.message : String(e)));
-      return [];
+    function setStatus(text) { statusEl.textContent = text; }
+    function t(key, vars) {
+      var langPack = I18N[state.lang] || I18N[CONFIG.defaultLanguage] || I18N.ru;
+      var fallback = I18N.ru || {};
+      var raw = Object.prototype.hasOwnProperty.call(langPack, key) ? langPack[key] : fallback[key];
+      var text = raw == null ? key : String(raw);
+      if (!vars) return text;
+      return text.replace(/\{([a-zA-Z0-9_]+)\}/g, function (_, name) {
+        return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : '';
+      });
     }
-  }
-
-  var ITEMS = parseItemsFromDom();
-  var state = { flat: [], currentIndex: -1, currentPage: 1, isUserGesture: false, candidateUrls: [], candidateIndex: 0, unsupportedById: {}, lang: 'ru' };
-
-  function $(id) { return document.getElementById(id); }
-  var audio = $('audio');
-  var now = $('now');
-  var hint = $('hint');
-  var listEl = $('list');
-  var pagerTop = $('pagerTop');
-  var pagerBottom = $('pagerBottom');
-  var statusEl = $('status');
-  var btnPrev = $('prev');
-  var btnNext = $('next');
-  var btnBack = $('back10');
-  var btnFwd = $('fwd30');
-  var openDrive = $('openDrive');
-  var langLabelEl = $('langLabel');
-  var langSelect = $('langSelect');
-  var debugBox = $('debugBox');
-  var debugOut = $('debugOut');
-  var debugTitle = $('debugTitle');
-  var debugHint = $('debugHint');
-
-  function log() {
-    var args = Array.prototype.slice.call(arguments);
-    if (CONFIG.logToConsole && console && console.log) console.log.apply(console, ['[stories]'].concat(args));
-    if (window.__BOOT_LOGS) {
+    function normalizeLang(lang) {
+      if (!lang) return CONFIG.defaultLanguage;
+      return Object.prototype.hasOwnProperty.call(I18N, lang) ? lang : CONFIG.defaultLanguage;
+    }
+    function loadPreferredLang() {
+      if (!CONFIG.rememberLanguage) return CONFIG.defaultLanguage;
       try {
-        var compact = [];
-        for (var i = 0; i < args.length; i++) compact.push(typeof args[i] === 'string' ? args[i] : JSON.stringify(args[i]));
-        window.__BOOT_LOGS.push('[stories] ' + compact.join(' '));
+        return normalizeLang(localStorage.getItem('uiLang:v1'));
+      } catch (e) {
+        return CONFIG.defaultLanguage;
+      }
+    }
+    function savePreferredLang(lang) {
+      if (!CONFIG.rememberLanguage) return;
+      try {
+        localStorage.setItem('uiLang:v1', lang);
       } catch (e) {}
     }
-    if (CONFIG.debug) {
-      var msg = [];
-      for (var j = 0; j < args.length; j++) msg.push(typeof args[j] === 'string' ? args[j] : JSON.stringify(args[j], null, 2));
-      debugOut.textContent = (debugOut.textContent + '\n' + msg.join(' ')).trim();
+    function safeText(s) { return s == null ? '' : String(s); }
+    function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+    function getPageSize() {
+      var n = Number(CONFIG.itemsPerPage);
+      if (!isFinite(n) || n < 1) return 10;
+      return Math.floor(n);
     }
-  }
-
-  function setStatus(text) { statusEl.textContent = text; }
-  function t(key, vars) {
-    var langPack = I18N[state.lang] || I18N[CONFIG.defaultLanguage] || I18N.ru;
-    var fallback = I18N.ru || {};
-    var raw = Object.prototype.hasOwnProperty.call(langPack, key) ? langPack[key] : fallback[key];
-    var text = (raw == null) ? key : String(raw);
-    if (!vars) return text;
-    return text.replace(/\{([a-zA-Z0-9_]+)\}/g, function (_, name) {
-      return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : '';
-    });
-  }
-  function normalizeLang(lang) {
-    if (!lang) return CONFIG.defaultLanguage;
-    return Object.prototype.hasOwnProperty.call(I18N, lang) ? lang : CONFIG.defaultLanguage;
-  }
-  function loadPreferredLang() {
-    if (!CONFIG.rememberLanguage) return CONFIG.defaultLanguage;
-    try {
-      return normalizeLang(localStorage.getItem('uiLang:v1'));
-    } catch (e) {
-      return CONFIG.defaultLanguage;
+    function getTotalPages() {
+      var pageSize = getPageSize();
+      return Math.max(1, Math.ceil(state.flat.length / pageSize));
     }
-  }
-  function savePreferredLang(lang) {
-    if (!CONFIG.rememberLanguage) return;
-    try {
-      localStorage.setItem('uiLang:v1', lang);
-    } catch (e) {}
-  }
-  function applyStaticLabels() {
-    document.documentElement.lang = state.lang;
-    document.title = t('appTitle');
-    $('pageTitle').textContent = t('appTitle');
-    langLabelEl.textContent = t('langLabel');
-    now.textContent = t('nowNothingSelected');
-    btnPrev.textContent = t('buttonPrev');
-    btnPrev.title = t('buttonPrevTitle');
-    btnNext.textContent = t('buttonNext');
-    btnNext.title = t('buttonNextTitle');
-    btnBack.textContent = t('buttonBack');
-    btnBack.title = t('buttonBackTitle');
-    btnFwd.textContent = t('buttonFwd');
-    btnFwd.title = t('buttonFwdTitle');
-    openDrive.textContent = t('openInDriveLabel');
-    debugTitle.textContent = t('debugTitle');
-    debugHint.textContent = t('debugHint');
-  }
-  function setLanguage(lang, rerender) {
-    state.lang = normalizeLang(lang);
-    langSelect.value = state.lang;
-    savePreferredLang(state.lang);
-    applyStaticLabels();
-    if (rerender) render(true);
-  }
-  function getExt(name) {
-    var s = safeText(name).toLowerCase();
-    var m = s.match(/\.([a-z0-9]+)$/);
-    return m ? m[1] : '';
-  }
-  function guessMimeByExt(ext) {
-    if (ext === 'mp3') return 'audio/mpeg';
-    if (ext === 'ogg') return 'audio/ogg';
-    if (ext === 'm4a') return 'audio/mp4';
-    return '';
-  }
-  function loadUnsupportedMap() {
-    try {
-      var raw = localStorage.getItem('unsupportedById:v1');
-      var obj = raw ? JSON.parse(raw) : {};
-      return obj && typeof obj === 'object' ? obj : {};
-    } catch (e) {
-      return {};
+    function pageForIndex(index) { return Math.floor(index / getPageSize()) + 1; }
+    function clampPage(page) { return clamp(page, 1, getTotalPages()); }
+    function storageKeyForTrack(track) {
+      return track && (track.id ? 'pos:' + track.id : 'pos:' + track.url);
     }
-  }
-  function saveUnsupportedMap() {
-    try {
-      localStorage.setItem('unsupportedById:v1', JSON.stringify(state.unsupportedById || {}));
-    } catch (e) {}
-  }
-  function isKnownUnsupported(track) {
-    return !!(track && track.id && state.unsupportedById && state.unsupportedById[track.id]);
-  }
-  function markUnsupported(track, errCode) {
-    if (!track || !track.id) return;
-    state.unsupportedById[track.id] = { err: errCode || 'code=4', at: Date.now() };
-    saveUnsupportedMap();
-    log('marked unsupported', { id: track.id, err: errCode || 'code=4' });
-  }
-  function canLikelyPlayInBrowser(track) {
-    var ext = getExt(track && (track.name || track.title || ''));
-    var mime = guessMimeByExt(ext);
-    if (!mime) return false;
-    if (!audio || typeof audio.canPlayType !== 'function') return true;
-    var answer = String(audio.canPlayType(mime) || '').toLowerCase();
-    return answer === 'probably' || answer === 'maybe';
-  }
-  function clearPlayWatchdog() {
-    if (state.playWatchdogId) {
-      clearTimeout(state.playWatchdogId);
-      state.playWatchdogId = 0;
-    }
-  }
-  function armPlayWatchdog(autoplay) {
-    clearPlayWatchdog();
-    if (!autoplay) return;
-    state.playWatchdogId = setTimeout(function () {
-      // If playback did not really start, try alternate URL.
-      if (audio.paused && (!audio.currentTime || audio.currentTime < 0.25)) {
-        log('play watchdog: no progress, trying fallback');
-        tryNextCandidate(true);
+    function loadSavedPosition(track) {
+      if (!CONFIG.rememberPosition) return 0;
+      try {
+        var raw = localStorage.getItem(storageKeyForTrack(track));
+        var val = raw ? Number(raw) : 0;
+        return isFinite(val) ? val : 0;
+      } catch (e) {
+        return 0;
       }
-    }, 1800);
-  }
-  function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-  function safeText(s) { return (s == null) ? '' : String(s); }
-  function getPageSize() {
-    var n = Number(CONFIG.itemsPerPage);
-    if (!isFinite(n) || n < 1) return 10;
-    return Math.floor(n);
-  }
-  function getTotalPages() {
-    var pageSize = getPageSize();
-    return Math.max(1, Math.ceil(state.flat.length / pageSize));
-  }
-  function pageForIndex(index) {
-    return Math.floor(index / getPageSize()) + 1;
-  }
-  function clampPage(page) {
-    return clamp(page, 1, getTotalPages());
-  }
-  function getPageWindow(total, current, visibleCount) {
-    var count = Math.max(1, visibleCount || 5);
-    var start = Math.max(1, current - Math.floor(count / 2));
-    var end = Math.min(total, start + count - 1);
-    start = Math.max(1, end - count + 1);
-    return { start: start, end: end };
-  }
-
-  function buildPlaybackCandidates(track) {
-    var out = [];
-    if (track && track.url) out.push(track.url);
-    if (track && track.id) {
-      out.push('https://drive.google.com/uc?export=download&id=' + track.id);
-      out.push('https://drive.google.com/uc?export=open&id=' + track.id);
     }
-    var uniq = [];
-    var seen = {};
-    for (var i = 0; i < out.length; i++) {
-      var u = out[i];
-      if (!u || seen[u]) continue;
-      seen[u] = true;
-      uniq.push(u);
+    function savePosition(track, seconds) {
+      if (!CONFIG.rememberPosition || !isFinite(seconds) || seconds < CONFIG.rememberPositionMinSeconds) return;
+      try {
+        localStorage.setItem(storageKeyForTrack(track), String(seconds));
+      } catch (e) {}
     }
-    return uniq;
-  }
-
-  function storageKeyForTrack(track) {
-    return track && (track.id ? 'pos:' + track.id : 'pos:' + track.url);
-  }
-  function loadSavedPosition(track) {
-    if (!CONFIG.rememberPosition) return 0;
-    try {
-      var key = storageKeyForTrack(track);
-      var raw = localStorage.getItem(key);
-      var val = raw ? Number(raw) : 0;
-      return isFinite(val) ? val : 0;
-    } catch (e) { return 0; }
-  }
-  function savePosition(track, seconds) {
-    if (!CONFIG.rememberPosition) return;
-    if (!isFinite(seconds)) return;
-    if (seconds < CONFIG.rememberPositionMinSeconds) return;
-    try {
-      var key = storageKeyForTrack(track);
-      localStorage.setItem(key, String(seconds));
-    } catch (e) {}
-  }
-  function clearPosition(track) {
-    if (!CONFIG.rememberPosition) return;
-    try {
-      var key = storageKeyForTrack(track);
-      localStorage.removeItem(key);
-    } catch (e) {}
-  }
-
-  function updateNavButtons() {
-    btnPrev.disabled = !(state.currentIndex > 0);
-    btnNext.disabled = !(state.currentIndex >= 0 && state.currentIndex + 1 < state.flat.length);
-  }
-
-  function highlightActive() {
-    var nodes = document.querySelectorAll('.item');
-    for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('active');
-    var el = document.querySelector('.item[data-idx="' + state.currentIndex + '"]');
-    if (el) el.classList.add('active');
-  }
-
-  function tryPlay() {
-    try {
-      log('tryPlay', { idx: state.currentIndex, src: audio.currentSrc || audio.src });
-      var p = audio.play();
-      if (p && typeof p.then === 'function') {
-        p.then(function () {
-          setStatus(t('statusPlaying'));
-          log('play promise resolved');
-        }).catch(function (e) {
-          setStatus(t('statusPressPlay'));
-          log('play() blocked or failed:', e && e.message ? e.message : e);
-        });
-      } else {
-        setStatus(t('statusPlaying'));
-        log('play immediate');
-      }
-    } catch (e) {
-      setStatus(t('statusPressPlay'));
-      log('play() failed:', e && e.message ? e.message : e);
+    function clearPosition(track) {
+      if (!CONFIG.rememberPosition) return;
+      try {
+        localStorage.removeItem(storageKeyForTrack(track));
+      } catch (e) {}
     }
-  }
-
-  function setAudioSource(url) {
-    audio.pause();
-    audio.removeAttribute('src');
-    audio.innerHTML = '';
-    audio.src = url;
-    audio.load();
-  }
-  function currentCandidateUrl() {
-    return state.candidateUrls[state.candidateIndex] || '';
-  }
-  function tryNextCandidate(autoplay) {
-    if (state.candidateIndex + 1 >= state.candidateUrls.length) return false;
-    state.candidateIndex += 1;
-    setStatus(t('tryingAnotherUrl'));
-    hint.textContent = t('sourceProgress', { current: state.candidateIndex + 1, total: state.candidateUrls.length });
-    log('fallback source', { index: state.candidateIndex, url: currentCandidateUrl() });
-    setAudioSource(currentCandidateUrl());
-    armPlayWatchdog(autoplay);
-    if (autoplay) {
-      var onCanPlay = function () {
-        audio.removeEventListener('canplay', onCanPlay);
-        tryPlay();
-      };
-      audio.addEventListener('canplay', onCanPlay);
-    }
-    return true;
-  }
-
-  function setCurrent(index, autoplay) {
-    if (typeof autoplay === 'undefined') autoplay = CONFIG.autoplayOnSelect;
-    if (index < 0 || index >= state.flat.length) return;
-    var targetPage = pageForIndex(index);
-    if (targetPage !== state.currentPage) {
-      state.currentPage = targetPage;
-      renderPager();
-      renderCurrentPage();
-    }
-
-    state.currentIndex = index;
-    var track = state.flat[index];
-    now.textContent = track.displayTitle;
-    hint.textContent = (CONFIG.showCreatedAt && track.createdStr) ? t('uploadedAt', { date: track.createdStr }) : '';
-    openDrive.href = track.viewUrl || '#';
-    openDrive.textContent = t('openInDriveLabel');
-
-    setStatus(t('statusLoading'));
-    state.candidateUrls = buildPlaybackCandidates(track);
-    state.candidateIndex = 0;
-    log('setCurrent', { index: index, title: track.displayTitle, candidates: state.candidateUrls });
-    if (!state.candidateUrls.length) {
-      setStatus(t('statusError'));
-      hint.textContent = t('noPlaybackUrl');
-      highlightActive();
-      updateNavButtons();
-      return;
-    }
-    hint.textContent = (CONFIG.showCreatedAt && track.createdStr)
-      ? t('sourceProgressWithDate', { current: 1, total: state.candidateUrls.length, date: track.createdStr })
-      : t('sourceProgress', { current: 1, total: state.candidateUrls.length });
-    setAudioSource(currentCandidateUrl());
-    armPlayWatchdog(autoplay);
-
-    var saved = loadSavedPosition(track);
-    audio.onloadedmetadata = function () {
-      log('loadedmetadata', { duration: audio.duration, url: currentCandidateUrl() });
-      if (saved > 0 && isFinite(audio.duration)) {
-        audio.currentTime = clamp(saved, 0, Math.max(0, audio.duration - 0.5));
-      }
-      if (autoplay) tryPlay();
-      highlightActive();
-      updateNavButtons();
-    };
-
-    audio.onerror = function () {
-      var err = audio.error ? ('code=' + audio.error.code) : 'unknown';
-      log('audio error', { err: err, url: currentCandidateUrl() });
-      if (tryNextCandidate(autoplay)) return;
-      setStatus(t('statusError'));
-      if (err === 'code=4') {
-        markUnsupported(track, err);
-      }
-      if (CONFIG.fallbackToDriveViewOnError && track.viewUrl) {
-        hint.textContent = t('notPlayableOpenDrive', { label: t('openInDriveLabel'), err: err });
-        openDrive.textContent = t('openInDriveLabel') + t('openInDriveRecommended');
-      } else {
-        hint.textContent = t('notPlayable', { err: err });
-      }
-    };
-
-    highlightActive();
-    updateNavButtons();
-  }
-
-  function next() {
-    if (state.currentIndex + 1 < state.flat.length) setCurrent(state.currentIndex + 1, true);
-  }
-  function prev() {
-    if (state.currentIndex - 1 >= 0) setCurrent(state.currentIndex - 1, true);
-  }
-
-  function groupItemsByBook(items) {
-    var out = { order: [], map: {} };
-    for (var i = 0; i < items.length; i++) {
-      var it = items[i];
-      var book = safeText(it.book || t('appTitle'));
-      if (!out.map[book]) {
-        out.map[book] = [];
-        out.order.push(book);
-      }
-      out.map[book].push(it);
-    }
-    return out;
-  }
-
-  function makeEl(tag, className, text) {
-    var el = document.createElement(tag);
-    if (className) el.className = className;
-    if (text != null) el.textContent = text;
-    return el;
-  }
-
-  function makeLink(text, href, opts) {
-    opts = opts || {};
-    var a = document.createElement('a');
-    a.href = href || '#';
-    a.textContent = text;
-    if (opts.download) a.setAttribute('download', '');
-    if (opts.newTab) {
-      a.target = '_blank';
-      a.rel = 'noopener';
-    }
-    if (opts.preventDefault) {
-      a.href = '#';
-      a.addEventListener('click', function (e) {
-        e.preventDefault();
-        if (opts.onClick) opts.onClick(e);
+    function getCompactDateFormatter(lang) {
+      return new Intl.DateTimeFormat(lang === 'ru' ? 'ru-RU' : 'en-US', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
       });
-    } else if (opts.onClick) {
-      a.addEventListener('click', opts.onClick);
     }
-    return a;
-  }
-
-  function renderPagerInto(container, totalPages, currentPage) {
-    container.innerHTML = '';
-    var frag = document.createDocumentFragment();
-
-    function addButton(label, targetPage, disabled, active) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pagerBtn' + (active ? ' active' : '');
-      btn.textContent = label;
-      btn.disabled = !!disabled;
-      if (!disabled) {
-        btn.addEventListener('click', function () {
-          state.currentPage = clampPage(targetPage);
-          renderPager();
-          renderCurrentPage();
-        });
+    function startOfLocalDay(date) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+    function formatDisplayDate(createdMs) {
+      if (!createdMs) return '';
+      var dt = new Date(createdMs);
+      var today = startOfLocalDay(new Date());
+      var target = startOfLocalDay(dt);
+      var days = Math.round((today - target) / 86400000);
+      if (days === 0) return t('today');
+      if (days === 1) return t('yesterday');
+      if (days === 2) return t('dayBeforeYesterday');
+      return getCompactDateFormatter(state.lang).format(dt);
+    }
+    function makeEl(tag, className, text) {
+      var el = document.createElement(tag);
+      if (className) el.className = className;
+      if (text != null) el.textContent = text;
+      return el;
+    }
+    function makeLink(text, href, opts) {
+      opts = opts || {};
+      var a = document.createElement('a');
+      a.className = 'btn' + (opts.primary ? ' btnPrimary' : ' btnSoft');
+      a.href = href || '#';
+      a.textContent = text;
+      if (opts.newTab) {
+        a.target = '_blank';
+        a.rel = 'noopener';
       }
-      frag.appendChild(btn);
+      if (opts.onClick) a.addEventListener('click', opts.onClick);
+      return a;
     }
-
-    addButton(t('pagerFirst'), 1, currentPage <= 1, false);
-    addButton(t('pagerPrev'), currentPage - 1, currentPage <= 1, false);
-
-    var windowPages = getPageWindow(totalPages, currentPage, 5);
-    for (var p = windowPages.start; p <= windowPages.end; p++) {
-      addButton(String(p), p, false, p === currentPage);
+    function isExperimentalAudioMode() {
+      return CONFIG.playbackMode === 'experimentalHtmlAudio';
     }
-
-    addButton(t('pagerNext'), currentPage + 1, currentPage >= totalPages, false);
-    addButton(t('pagerLast'), totalPages, currentPage >= totalPages, false);
-
-    var info = makeEl('span', 'pageInfo', t('pagerInfo', { current: currentPage, total: totalPages }));
-    frag.appendChild(info);
-    container.appendChild(frag);
-  }
-
-  function renderPager() {
-    var totalPages = getTotalPages();
-    state.currentPage = clampPage(state.currentPage);
-    renderPagerInto(pagerTop, totalPages, state.currentPage);
-    renderPagerInto(pagerBottom, totalPages, state.currentPage);
-  }
-
-  function renderCurrentPage() {
-    listEl.innerHTML = '';
-    var pageSize = getPageSize();
-    var startIdx = (state.currentPage - 1) * pageSize;
-    var endIdx = Math.min(state.flat.length, startIdx + pageSize);
-    var containerFrag = document.createDocumentFragment();
-
-    var block = null;
-    var currentBook = '';
-    for (var idx = startIdx; idx < endIdx; idx++) {
-      var track = state.flat[idx];
-      var book = safeText(track.book || t('appTitle'));
-      if (CONFIG.groupByBook) {
-        if (!block || book !== currentBook) {
-          block = makeEl('div', 'book');
-          block.appendChild(makeEl('h2', null, book));
-          containerFrag.appendChild(block);
-          currentBook = book;
+    function updateNavButtons() {
+      btnPrev.disabled = !(state.currentIndex > 0);
+      btnNext.disabled = !(state.currentIndex >= 0 && state.currentIndex + 1 < state.flat.length);
+    }
+    function highlightActive() {
+      var nodes = document.querySelectorAll('.card');
+      for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('active');
+      var el = document.querySelector('.card[data-idx="' + state.currentIndex + '"]');
+      if (el) el.classList.add('active');
+    }
+    function applyStaticLabels() {
+      document.documentElement.lang = state.lang;
+      $('pageTitle').textContent = t('appTitle');
+      document.title = t('appTitle');
+      pageSubtitle.textContent = t('pageSubtitle');
+      langLabelEl.textContent = t('langLabel');
+      feedTitle.textContent = t('latestStories');
+      refreshBtn.textContent = t('buttonRefresh');
+      heroOpenDrive.textContent = t('openLatestLabel');
+      heroSelect.textContent = isExperimentalAudioMode() ? t('listenInBrowserLabel') : t('buttonSelect');
+      now.textContent = t('nowNothingSelected');
+      btnPrev.textContent = t('buttonPrev');
+      btnPrev.title = t('buttonPrevTitle');
+      btnNext.textContent = t('buttonNext');
+      btnNext.title = t('buttonNextTitle');
+      btnBack.textContent = t('buttonBack');
+      btnBack.title = t('buttonBackTitle');
+      btnFwd.textContent = t('buttonFwd');
+      btnFwd.title = t('buttonFwdTitle');
+      openDrive.textContent = t('continueInDriveLabel');
+      debugTitle.textContent = t('debugTitle');
+      debugHint.textContent = t('debugHint');
+    }
+    function setLanguage(lang, rerender) {
+      state.lang = normalizeLang(lang);
+      langSelect.value = state.lang;
+      savePreferredLang(state.lang);
+      applyStaticLabels();
+      if (rerender) render(true);
+    }
+    function setHero(track) {
+      if (!track) {
+        hero.hidden = true;
+        return;
+      }
+      hero.hidden = false;
+      heroEyebrow.textContent = t('latestBadge');
+      heroTitle.textContent = track.displayTitle;
+      heroMeta.textContent = '';
+      heroMeta.appendChild(makeEl('span', null, t('uploadedAt', { date: track.displayDate })));
+      if (track.book) heroMeta.appendChild(makeEl('span', null, t('byBook', { book: track.book })));
+      heroOpenDrive.href = track.viewUrl || '#';
+      heroSelect.textContent = isExperimentalAudioMode() ? t('listenInBrowserLabel') : t('buttonSelect');
+    }
+    function setAudioSource(url) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.src = url;
+      audio.load();
+    }
+    function tryPlay() {
+      try {
+        var playPromise = audio.play();
+        if (playPromise && typeof playPromise.then === 'function') {
+          playPromise.then(function () {
+            setStatus(t('statusPlaying'));
+          }).catch(function (e) {
+            setStatus(t('statusPressPlay'));
+            log('play() blocked or failed', e && e.message ? e.message : e);
+          });
+        } else {
+          setStatus(t('statusPlaying'));
         }
-      } else if (!block) {
-        block = makeEl('div', 'book');
-        containerFrag.appendChild(block);
+      } catch (e) {
+        setStatus(t('statusPressPlay'));
+        log('play() failed', e && e.message ? e.message : e);
+      }
+    }
+    function setCurrent(index, autoplay) {
+      if (typeof autoplay === 'undefined') autoplay = CONFIG.autoplayOnSelect;
+      if (index < 0 || index >= state.flat.length) return;
+
+      var targetPage = pageForIndex(index);
+      if (targetPage !== state.currentPage) {
+        state.currentPage = targetPage;
+        renderPager();
+        renderCurrentPage();
       }
 
-      var itemEl = makeEl('div', 'item');
-      itemEl.setAttribute('data-idx', String(idx));
+      state.currentIndex = index;
+      var track = state.flat[index];
+      setHero(track);
+      highlightActive();
+      updateNavButtons();
 
-      var row = makeEl('div', 'row');
-      row.appendChild(makeEl('div', 'title', track.displayTitle));
-      row.appendChild(makeEl('div', 'meta', CONFIG.showCreatedAt ? safeText(track.createdStr || '') : ''));
-      itemEl.appendChild(row);
+      if (!isExperimentalAudioMode()) {
+        setStatus(t('statusReady'));
+        hint.textContent = t('openInDriveHint');
+        return;
+      }
 
-      var links = makeEl('div', 'links');
-      (function (capturedIdx, capturedTrack) {
-        if (capturedTrack.viewUrl) {
-          links.appendChild(makeLink(t('openInDriveLabel'), capturedTrack.viewUrl, { newTab: true }));
+      now.textContent = track.displayTitle;
+      hint.textContent = t('uploadedAt', { date: track.displayDate });
+      openDrive.href = track.viewUrl || '#';
+      setStatus(t('statusLoading'));
+      setAudioSource(track.url || '');
+
+      var saved = loadSavedPosition(track);
+      audio.onloadedmetadata = function () {
+        if (saved > 0 && isFinite(audio.duration)) {
+          audio.currentTime = clamp(saved, 0, Math.max(0, audio.duration - 0.5));
         }
-        if (capturedTrack.showPlayInBrowser) {
-          links.appendChild(makeLink(t('playInBrowserLabel'), '#', {
-            preventDefault: true,
-            onClick: function () { setCurrent(capturedIdx, true); }
-          }));
-        }
-        itemEl.addEventListener('click', function (e) {
-          var tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-          if (tag === 'a') return;
-          setCurrent(capturedIdx, !!capturedTrack.showPlayInBrowser);
+        if (autoplay) tryPlay();
+        highlightActive();
+        updateNavButtons();
+      };
+
+      audio.onerror = function () {
+        setStatus(t('statusError'));
+        hint.textContent = t('playbackUnavailableHint');
+        log('audio error', {
+          code: audio.error ? audio.error.code : 'unknown',
+          url: track.url,
+          id: track.id
         });
-      })(idx, track);
-
-      if (CONFIG.showDownloadLinkInList && track.url) links.appendChild(makeLink(t('downloadInListLabel'), track.url, { download: true }));
-      itemEl.appendChild(links);
-      block.appendChild(itemEl);
+      };
     }
-
-    listEl.appendChild(containerFrag);
-    highlightActive();
-  }
-
-  function buildFlatTracks(items) {
-    state.flat = [];
-    var grouped;
-    if (CONFIG.groupByBook) {
-      grouped = groupItemsByBook(items);
-    } else {
-      grouped = { order: [t('appTitle')], map: {} };
-      grouped.map[t('appTitle')] = items;
+    function next() {
+      if (state.currentIndex + 1 < state.flat.length) setCurrent(state.currentIndex + 1, true);
     }
+    function prev() {
+      if (state.currentIndex - 1 >= 0) setCurrent(state.currentIndex - 1, true);
+    }
+    function getPageWindow(total, current, visibleCount) {
+      var count = Math.max(1, visibleCount || 5);
+      var start = Math.max(1, current - Math.floor(count / 2));
+      var end = Math.min(total, start + count - 1);
+      start = Math.max(1, end - count + 1);
+      return { start: start, end: end };
+    }
+    function renderPagerInto(container, totalPages, currentPage) {
+      container.textContent = '';
+      container.hidden = totalPages <= 1;
+      if (totalPages <= 1) return;
 
-    for (var b = 0; b < grouped.order.length; b++) {
-      var book = grouped.order[b];
-      var arr = grouped.map[book] || [];
-      for (var localIdx = 0; localIdx < arr.length; localIdx++) {
-        var it = arr[localIdx];
-        var perBookNumber = arr.length - localIdx;
+      var frag = document.createDocumentFragment();
+      function addButton(label, targetPage, disabled, active) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pagerBtn' + (active ? ' active' : '');
+        btn.textContent = label;
+        btn.disabled = !!disabled;
+        if (!disabled) {
+          btn.addEventListener('click', function () {
+            state.currentPage = clampPage(targetPage);
+            renderPager();
+            renderCurrentPage();
+          });
+        }
+        frag.appendChild(btn);
+      }
+
+      addButton(t('pagerFirst'), 1, currentPage <= 1, false);
+      addButton(t('pagerPrev'), currentPage - 1, currentPage <= 1, false);
+      var windowPages = getPageWindow(totalPages, currentPage, 5);
+      for (var p = windowPages.start; p <= windowPages.end; p++) {
+        addButton(String(p), p, false, p === currentPage);
+      }
+      addButton(t('pagerNext'), currentPage + 1, currentPage >= totalPages, false);
+      addButton(t('pagerLast'), totalPages, currentPage >= totalPages, false);
+      frag.appendChild(makeEl('span', 'pageInfo', t('pagerInfo', { current: currentPage, total: totalPages })));
+      container.appendChild(frag);
+    }
+    function renderPager() {
+      var totalPages = getTotalPages();
+      state.currentPage = clampPage(state.currentPage);
+      renderPagerInto(pagerTop, totalPages, state.currentPage);
+      renderPagerInto(pagerBottom, totalPages, state.currentPage);
+    }
+    function renderCurrentPage() {
+      listEl.textContent = '';
+      var pageSize = getPageSize();
+      var startIdx = (state.currentPage - 1) * pageSize;
+      var endIdx = Math.min(state.flat.length, startIdx + pageSize);
+      var frag = document.createDocumentFragment();
+
+      for (var idx = startIdx; idx < endIdx; idx++) {
+        var track = state.flat[idx];
+        var card = makeEl('article', 'card');
+        card.setAttribute('data-idx', String(idx));
+
+        var header = makeEl('div', 'cardHeader');
+        header.appendChild(makeEl('div', 'cardTitle', track.displayTitle));
+        header.appendChild(makeEl('div', 'cardDate', track.displayDate));
+        card.appendChild(header);
+
+        if (track.book) card.appendChild(makeEl('div', 'cardBook', t('byBook', { book: track.book })));
+
+        var actions = makeEl('div', 'cardActions');
+        actions.appendChild(makeLink(t('openInDriveLabel'), track.viewUrl, { newTab: true, primary: true }));
+
+        (function (capturedIdx) {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'cardPrimary';
+          button.textContent = isExperimentalAudioMode() ? t('listenInBrowserLabel') : t('buttonSelectTrack');
+          button.addEventListener('click', function () {
+            setCurrent(capturedIdx, isExperimentalAudioMode());
+          });
+          actions.appendChild(button);
+        })(idx);
+
+        card.appendChild(actions);
+        (function (capturedIdx) {
+          card.addEventListener('click', function (e) {
+            var tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+            if (tag === 'a' || tag === 'button') return;
+            setCurrent(capturedIdx, false);
+          });
+        })(idx);
+        frag.appendChild(card);
+      }
+
+      listEl.appendChild(frag);
+      highlightActive();
+    }
+    function buildFlatTracks(items) {
+      state.flat = [];
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
         var displayNumber = null;
         if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
-        else if (CONFIG.episodeNumberMode === 'perBook') displayNumber = perBookNumber;
-        var numberPart = (CONFIG.showEpisodeNumber && displayNumber != null) ? ('#' + displayNumber + '. ') : '';
+        var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? ('#' + displayNumber + '. ') : '';
         var title = safeText(it.title || it.name || t('defaultTrackTitle'));
-
         var track = {};
-        for (var k in it) if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
-        track.book = safeText(book);
+        for (var k in it) {
+          if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
+        }
+        track.book = safeText(it.book || '');
+        track.name = safeText(it.name || '');
         track.displayTitle = numberPart + title;
-        track.name = it.name || it.title || '';
-        track.url = it.url;
-        track.viewUrl = it.viewUrl;
-        track.showPlayInBrowser = canLikelyPlayInBrowser(track);
+        track.displayDate = formatDisplayDate(it.createdMs || 0);
         state.flat.push(track);
       }
     }
-  }
-
-  function render(preserveCurrent) {
-    if (window.__bootLog) window.__bootLog('render:start');
-    $('pageTitle').textContent = t('appTitle');
-    if (CONFIG.debug) {
-      debugBox.style.display = 'block';
-      if (window.__BOOT_LOGS && window.__BOOT_LOGS.length) debugOut.textContent = window.__BOOT_LOGS.join('\n');
-    }
-
-    var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
-    if (window.__bootLog) window.__bootLog('render:items=' + items.length);
-    state.unsupportedById = loadUnsupportedMap();
-    buildFlatTracks(items);
-    state.currentPage = clampPage(state.currentPage);
-    renderPager();
-    renderCurrentPage();
-
-    if (state.flat.length) {
-      if (preserveCurrent && state.currentIndex >= 0 && state.currentIndex < state.flat.length) {
-        setCurrent(state.currentIndex, false);
-      } else {
-        setCurrent(0, CONFIG.autoplayFirstItem);
+    function render(preserveCurrent) {
+      if (CONFIG.debug) {
+        debugBox.style.display = 'block';
+        if (window.__BOOT_LOGS && window.__BOOT_LOGS.length) debugOut.textContent = window.__BOOT_LOGS.join('\n');
       }
-      setStatus(t('statusReady'));
-    } else {
-      setStatus(t('statusNoFiles'));
-      now.textContent = t('noFilesInFolder');
+
+      player.hidden = !isExperimentalAudioMode();
+      var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
+      buildFlatTracks(items);
+      state.currentPage = clampPage(state.currentPage);
+      renderPager();
+      renderCurrentPage();
+
+      if (state.flat.length) {
+        setHero(state.flat[0]);
+        if (preserveCurrent && state.currentIndex >= 0 && state.currentIndex < state.flat.length) {
+          setCurrent(state.currentIndex, false);
+        } else {
+          setCurrent(0, CONFIG.autoplayFirstItem);
+        }
+        if (!isExperimentalAudioMode()) {
+          setStatus(t('statusReady'));
+          hint.textContent = t('openInDriveHint');
+        }
+      } else {
+        hero.hidden = true;
+        setStatus(t('statusNoFiles'));
+        listEl.appendChild(makeEl('div', 'meta', t('noFilesInFolder')));
+        now.textContent = t('noFilesInFolder');
+      }
     }
-  }
+    function wireEvents() {
+      btnNext.addEventListener('click', function () { next(); });
+      btnPrev.addEventListener('click', function () { prev(); });
+      btnBack.addEventListener('click', function () {
+        audio.currentTime = Math.max(0, (audio.currentTime || 0) - CONFIG.seekBackSeconds);
+      });
+      btnFwd.addEventListener('click', function () {
+        audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds;
+      });
+      heroSelect.addEventListener('click', function () {
+        if (state.flat.length) setCurrent(0, isExperimentalAudioMode());
+      });
+      refreshBtn.addEventListener('click', function () {
+        window.location.reload();
+      });
+      heroOpenDrive.addEventListener('click', function () {
+        if (state.flat.length) setCurrent(0, false);
+      });
+      audio.addEventListener('ended', function () {
+        setStatus(t('statusEnded'));
+        var track = state.flat[state.currentIndex];
+        if (track) clearPosition(track);
+        if (CONFIG.autoNextOnEnded && state.currentIndex + 1 < state.flat.length) next();
+      });
+      audio.addEventListener('timeupdate', function () {
+        var track = state.flat[state.currentIndex];
+        if (!track) return;
+        if (audio.currentTime && Math.floor(audio.currentTime) % 3 === 0) savePosition(track, audio.currentTime);
+      });
+      audio.addEventListener('play', function () { setStatus(t('statusPlaying')); });
+      audio.addEventListener('playing', function () { setStatus(t('statusPlaying')); });
+      audio.addEventListener('pause', function () {
+        if (!audio.ended) setStatus(t('statusPaused'));
+      });
+      audio.addEventListener('waiting', function () { setStatus(t('statusBuffering')); });
+      audio.addEventListener('stalled', function () { setStatus(t('statusNetwork')); });
+      audio.addEventListener('canplay', function () { setStatus(t('statusReady')); });
+      langSelect.addEventListener('change', function () {
+        setLanguage(langSelect.value, true);
+      });
+    }
 
-  function wireEvents() {
-    if (window.__bootLog) window.__bootLog('wireEvents:start');
-    var markGesture = function () {
-      state.isUserGesture = true;
-      window.removeEventListener('click', markGesture);
-      window.removeEventListener('touchstart', markGesture);
-      window.removeEventListener('keydown', markGesture);
-    };
-    window.addEventListener('click', markGesture);
-    window.addEventListener('touchstart', markGesture);
-    window.addEventListener('keydown', markGesture);
-
-    btnNext.addEventListener('click', function () { next(); });
-    btnPrev.addEventListener('click', function () { prev(); });
-    btnBack.addEventListener('click', function () { audio.currentTime = Math.max(0, (audio.currentTime || 0) - CONFIG.seekBackSeconds); });
-    btnFwd.addEventListener('click', function () { audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds; });
-
-    audio.addEventListener('ended', function () {
-      log('ended', { currentTime: audio.currentTime, duration: audio.duration });
-      setStatus(t('statusEnded'));
-      var t = state.flat[state.currentIndex];
-      if (t) clearPosition(t);
-      if (CONFIG.autoNextOnEnded && state.currentIndex + 1 < state.flat.length) next();
-    });
-    audio.addEventListener('timeupdate', function () {
-      var t = state.flat[state.currentIndex];
-      if (!t) return;
-      if (audio.currentTime && Math.floor(audio.currentTime) % 3 === 0) savePosition(t, audio.currentTime);
-    });
-    audio.addEventListener('play', function () { setStatus(t('statusPlaying')); });
-    audio.addEventListener('playing', function () {
-      clearPlayWatchdog();
-      log('playing', { currentTime: audio.currentTime, url: audio.currentSrc || audio.src });
-      setStatus(t('statusPlaying'));
-    });
-    audio.addEventListener('pause', function () {
-      log('pause', { currentTime: audio.currentTime, ended: audio.ended });
-      setStatus(t('statusPaused'));
-    });
-    audio.addEventListener('waiting', function () {
-      log('waiting');
-      setStatus(t('statusBuffering'));
-    });
-    audio.addEventListener('stalled', function () {
-      log('stalled');
-      setStatus(t('statusNetwork'));
-    });
-    audio.addEventListener('canplay', function () {
-      log('canplay');
-      setStatus(t('statusReady'));
-    });
-    langSelect.addEventListener('change', function () {
-      setLanguage(langSelect.value, true);
-    });
-  }
-
-  if (window.__bootLog) window.__bootLog('init:start');
-  state.lang = loadPreferredLang();
-  setLanguage(state.lang, false);
-  wireEvents();
-  if (window.__bootLog) window.__bootLog('init:events-wired');
-  render();
-  if (window.__bootLog) window.__bootLog('init:render-done');
-</script>
+    state.lang = loadPreferredLang();
+    setLanguage(state.lang, false);
+    wireEvents();
+    render();
+  </script>
 </body>
 </html>

@@ -1,24 +1,24 @@
 # Drive Stories Player (Google Apps Script + Google Drive)
 
-A tiny **Google-only** web app that lists audio files from a Google Drive folder and provides a **stable “one-link” page** to **play, seek, auto-next**, and **download** recordings (e.g., bedtime stories, voice notes, daily updates).
+A tiny **Google-only** web app that lists audio files from a Google Drive folder and provides a **stable “one-link” page** to open the latest recordings in **Google Drive** with an optional experimental in-page player.
 
 ## What it does
 - Reads audio files from a single Google Drive folder (`.mp3`, `.ogg`, `.m4a`)
 - Renders a web page (Apps Script Web App) with:
-  - HTML5 `<audio>` player (native controls + seek)
+  - Drive-first recent-feed layout optimized for phones
+  - Primary “Open in Google Drive” action for each item
   - RU/EN UI switcher (RU default)
-  - Pagination (10 items per page) with large controls at top and bottom
-  - Previous/Next navigation
-  - Seek buttons (e.g., -10s / +30s)
-  - Auto-next when a track ends
-  - Optional resume position (localStorage)
-  - Download link + “Open in Drive” fallback
+  - Relative localized dates (`Today` / `Yesterday` / compact date)
+  - Pagination with large controls when more than one page exists
+  - Refresh button for newly uploaded files
+  - Optional experimental HTML5 `<audio>` mode kept behind frontend config
 - Shows newest files first; auto-generates episode numbering (oldest = #1)
+- Limits backend output to the newest 10 files by default
 
 ## Architecture (high level)
 - **Storage:** Google Drive folder contains audio files
 - **Backend:** Google Apps Script Web App (`doGet()`) reads Drive folder metadata and injects `itemsJson` into the HTML template
-- **Frontend:** Static HTML + JS builds playlist UI and controls playback using the browser’s `<audio>` element
+- **Frontend:** Static HTML + JS builds a recent-feed UI and defaults to Drive viewer playback for better mobile reliability
 
 Official references:
 - Apps Script Web Apps: https://developers.google.com/apps-script/guides/web
