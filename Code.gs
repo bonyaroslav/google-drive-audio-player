@@ -15,7 +15,7 @@ const BACKEND_CONFIG = {
   pageTitle: 'Казки - аудіо з Google Drive',
   pageDescription: 'Мобільна сторінка для прослуховування свіжих аудіофайлів із папки Google Drive.',
   themeColor: '#1f6b5f',
-  faviconUrl: 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/1f409.svg'
+  faviconUrl: ''
 };
 
 function doGet(e) {

@@ -144,10 +144,10 @@ Android focus:
 **Why:** Apps Script officially supports server-side title and favicon APIs, but arbitrary `<meta>` / `<link>` tags are not reliably preserved in `HtmlService` output.  
 **Trade-off:** Description/icon hints added client-side are best-effort and may not be used by every crawler or bookmark surface.
 
-### 2026-03-19 — Default favicon uses Twemoji dragon
-**Decision:** Use the Twemoji dragon asset (`1f409.svg`) from the maintained `jdecked/twemoji` package on jsDelivr as the default favicon URL.  
-**Why:** It is a recognizable icon available from an official upstream project with a stable CDN path, and it avoids adding repo asset handling for now.  
-**Trade-off:** This depends on a third-party CDN and requires keeping CC BY 4.0 attribution with the project documentation.
+### 2026-03-19 — Avoid SVG in `setFaviconUrl()`
+**Decision:** Keep `BACKEND_CONFIG.faviconUrl` empty until a supported PNG/ICO favicon asset is available.  
+**Why:** An SVG favicon URL caused runtime failure: `Exception: The favicon icon image type is not supported.`  
+**Trade-off:** Server-side favicon remains unset for now; client-side fallback icon hints may still help some bookmark/tab surfaces but are not equivalent to `setFaviconUrl()`.
 
 ### 2026-03-18 — Drive-first mobile playback + recent-feed layout
 **Decision:** Default the UI to `playbackMode: 'driveOnly'`, show a recent-feed layout, and keep embedded HTML audio behind an experimental config flag.  
