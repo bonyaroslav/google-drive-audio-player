@@ -37,7 +37,7 @@ Notes:
 ## 3) Frontend behavior (Index.html)
 - Central `CONFIG` controls:
   - playback mode toggle: `driveOnly` by default, `experimentalHtmlAudio` optional
-  - pagination (`itemsPerPage`, default `10`) with top + bottom pager controls
+  - pagination (`itemsPerPage`, default `10`) with a single bottom pager control
   - autoplay-on-select (best-effort), auto-next on ended when experimental audio is enabled
   - seek step buttons (e.g., -10s/+30s) in experimental audio mode
   - UI language options (`uk`/`ru`/`en`) with Ukrainian default on fresh clients; selected language persisted in versioned cookies and `localStorage`
@@ -53,6 +53,8 @@ Notes:
   - user-facing errors should be plain guidance; technical details stay in debug logging / console
 - Diagnostics:
   - `?debug=1` in URL enables in-page debug panel and console logs at runtime.
+  - Refresh button adds a cache-busting query parameter and bypasses `CacheService` for that request.
+  - Page title is set server-side via `HtmlOutput.setTitle()`. Description/theme-color/icon hints are applied client-side because `HtmlService` does not support arbitrary head tags directly.
   - Early bootstrap logger (`window.__bootLog`) is initialized before main app script and captures `window.error` / `unhandledrejection`.
   - UI shows `build` timestamp to verify the active Web App deployment version.
 
@@ -128,9 +130,24 @@ Android focus:
 **Trade-off:** Slightly more frontend state handling (language persistence/re-rendering).
 
 ### 2026-02-19 — Playlist pagination (10 items/page)
-**Decision:** Paginate rendered playlist to 10 items per page by default (`CONFIG.itemsPerPage`) and render pager controls above and below the list.  
-**Why:** Better usability for long playlists, especially on tablets/phones.  
-**Trade-off:** Adds page state and list re-rendering when moving between pages.
+**Decision:** Paginate rendered playlist to 10 items per page by default (`CONFIG.itemsPerPage`) and render a single pager below the list.  
+**Why:** Better usability for long playlists without duplicating controls at the bottom of the page.  
+**Trade-off:** Returning to page navigation requires scrolling to the list footer.
+
+### 2026-03-19 — Forced refresh bypasses browser and Apps Script cache
+**Decision:** The refresh button now navigates to the current page with a `refresh` query token, and `doGet(e)` bypasses `CacheService` for that request.  
+**Why:** `window.location.reload()` alone could still show stale data because of browser/app cache and the backend cache TTL.  
+**Trade-off:** Forced refresh generates an extra uncached Drive listing for that request.
+
+### 2026-03-19 — Centralized page metadata config
+**Decision:** Keep page title, description, theme color, and optional favicon URL in `BACKEND_CONFIG`. Set the title server-side and apply the remaining head metadata client-side.  
+**Why:** Apps Script officially supports server-side title and favicon APIs, but arbitrary `<meta>` / `<link>` tags are not reliably preserved in `HtmlService` output.  
+**Trade-off:** Description/icon hints added client-side are best-effort and may not be used by every crawler or bookmark surface.
+
+### 2026-03-19 — Default favicon uses Twemoji dragon
+**Decision:** Use the Twemoji dragon asset (`1f409.svg`) from the maintained `jdecked/twemoji` package on jsDelivr as the default favicon URL.  
+**Why:** It is a recognizable icon available from an official upstream project with a stable CDN path, and it avoids adding repo asset handling for now.  
+**Trade-off:** This depends on a third-party CDN and requires keeping CC BY 4.0 attribution with the project documentation.
 
 ### 2026-03-18 — Drive-first mobile playback + recent-feed layout
 **Decision:** Default the UI to `playbackMode: 'driveOnly'`, show a recent-feed layout, and keep embedded HTML audio behind an experimental config flag.  

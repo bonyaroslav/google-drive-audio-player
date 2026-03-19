@@ -368,11 +368,11 @@
       <div class="list" id="list"></div>
     </section>
 
-    <div class="pager" id="pagerTop"></div>
     <div class="pager" id="pagerBottom"></div>
   </div>
 
   <script id="itemsData" type="application/json"><?!= itemsJson ?></script>
+  <script id="pageMetaData" type="application/json"><?!= pageMetaJson ?></script>
   <script>
     (function () {
       var logs = [];
@@ -595,7 +595,20 @@
       }
     }
 
+    function parsePageMetaFromDom() {
+      try {
+        var node = document.getElementById('pageMetaData');
+        var raw = node ? node.textContent : '{}';
+        var parsed = JSON.parse(raw || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (e) {
+        console.error('Failed to parse pageMetaJson', e);
+        return {};
+      }
+    }
+
     var ITEMS = parseItemsFromDom();
+    var PAGE_META = parsePageMetaFromDom();
     var state = { flat: [], currentIndex: -1, currentPage: 1, lang: 'uk' };
 
     function $(id) { return document.getElementById(id); }
@@ -604,7 +617,6 @@
     var now = $('now');
     var hint = $('hint');
     var listEl = $('list');
-    var pagerTop = $('pagerTop');
     var pagerBottom = $('pagerBottom');
     var statusEl = $('status');
     var btnPrev = $('prev');
@@ -645,6 +657,54 @@
     }
 
     function setStatus(text) { statusEl.textContent = text; }
+    function getConfiguredPageTitle() {
+      return safeText(PAGE_META.pageTitle || '');
+    }
+    function getConfiguredPageDescription() {
+      return safeText(PAGE_META.pageDescription || '');
+    }
+    function getConfiguredThemeColor() {
+      return safeText(PAGE_META.themeColor || '');
+    }
+    function buildFallbackIconDataUrl() {
+      var svg = '' +
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+        '<rect width="64" height="64" rx="16" fill="#1f6b5f"/>' +
+        '<circle cx="24" cy="32" r="8" fill="#fff"/>' +
+        '<path d="M30 24 L30 40 L46 32 Z" fill="#fff"/>' +
+        '</svg>';
+      return 'data:image/svg+xml,' + encodeURIComponent(svg);
+    }
+    function ensureHeadNode(selector, tagName, attrs) {
+      var node = document.head.querySelector(selector);
+      if (!node) {
+        node = document.createElement(tagName);
+        for (var key in attrs) {
+          if (Object.prototype.hasOwnProperty.call(attrs, key)) node.setAttribute(key, attrs[key]);
+        }
+        document.head.appendChild(node);
+      }
+      return node;
+    }
+    function applyHeadMetadata() {
+      var title = getConfiguredPageTitle() || t('appTitle');
+      var description = getConfiguredPageDescription();
+      var iconHref = safeText(PAGE_META.faviconUrl || '') || buildFallbackIconDataUrl();
+      var themeColor = getConfiguredThemeColor();
+
+      document.title = title;
+
+      if (description) {
+        ensureHeadNode('meta[name="description"]', 'meta', { name: 'description' }).setAttribute('content', description);
+        ensureHeadNode('meta[name="application-name"]', 'meta', { name: 'application-name' }).setAttribute('content', title);
+      }
+      if (themeColor) {
+        ensureHeadNode('meta[name="theme-color"]', 'meta', { name: 'theme-color' }).setAttribute('content', themeColor);
+      }
+
+      ensureHeadNode('link[rel="icon"]', 'link', { rel: 'icon' }).setAttribute('href', iconHref);
+      ensureHeadNode('link[rel="apple-touch-icon"]', 'link', { rel: 'apple-touch-icon' }).setAttribute('href', iconHref);
+    }
     function t(key, vars) {
       var langPack = I18N[state.lang] || I18N[CONFIG.defaultLanguage] || I18N.uk;
       var fallback = I18N.uk || {};
@@ -782,7 +842,6 @@
     function applyStaticLabels() {
       document.documentElement.lang = state.lang;
       $('pageTitle').textContent = t('appTitle');
-      document.title = t('appTitle');
       pageSubtitle.textContent = t('pageSubtitle');
       pageSubtitle.hidden = !pageSubtitle.textContent;
       langLabelEl.textContent = t('langLabel');
@@ -801,6 +860,7 @@
       openDrive.textContent = t('continueInDriveLabel');
       debugTitle.textContent = t('debugTitle');
       debugHint.textContent = t('debugHint');
+      applyHeadMetadata();
     }
     function setLanguage(lang, rerender) {
       state.lang = normalizeLang(lang);
@@ -944,7 +1004,6 @@
     function renderPager() {
       var totalPages = getTotalPages();
       state.currentPage = clampPage(state.currentPage);
-      renderPagerInto(pagerTop, totalPages, state.currentPage);
       renderPagerInto(pagerBottom, totalPages, state.currentPage);
     }
     function renderCurrentPage() {
@@ -1067,7 +1126,11 @@
         audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds;
       });
       refreshBtn.addEventListener('click', function () {
-        window.location.reload();
+        var url = new URL(window.location.href);
+        var stamp = String(Date.now());
+        url.searchParams.set('refresh', stamp);
+        url.searchParams.set('_', stamp);
+        window.location.replace(url.toString());
       });
       heroOpenDrive.addEventListener('click', function () {
         if (state.flat.length) setCurrent(0, false);

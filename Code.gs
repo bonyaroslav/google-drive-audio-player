@@ -11,21 +11,33 @@ const BACKEND_CONFIG = {
   cacheSeconds: 120,
   maxFiles: 100,
   allowedExtensions: ['.mp3', '.ogg', '.m4a'],
-  defaultBook: 'Казки'
+  defaultBook: 'Казки',
+  pageTitle: 'Казки - аудіо з Google Drive',
+  pageDescription: 'Мобільна сторінка для прослуховування свіжих аудіофайлів із папки Google Drive.',
+  themeColor: '#1f6b5f',
+  faviconUrl: 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/1f409.svg'
 };
 
-function doGet() {
-  const items = getItemsCached_();
+function doGet(e) {
+  const items = getItemsCached_(shouldForceRefresh_(e));
   const tpl = HtmlService.createTemplateFromFile('Index');
   tpl.itemsJson = safeJson_(items);
   tpl.buildId = Utilities.formatDate(new Date(), BACKEND_CONFIG.timezone, "yyyy-MM-dd HH:mm:ss");
+  tpl.pageMetaJson = safeJson_(getPageMeta_());
 
-  return tpl.evaluate()
-    .setTitle('Казки')
+  let output = tpl.evaluate()
+    .setTitle(BACKEND_CONFIG.pageTitle)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+
+  if (BACKEND_CONFIG.faviconUrl) {
+    output = output.setFaviconUrl(BACKEND_CONFIG.faviconUrl);
+  }
+
+  return output;
 }
 
-function getItemsCached_() {
+function getItemsCached_(forceRefresh) {
+  if (forceRefresh) return getItems_();
   if (!BACKEND_CONFIG.cacheSeconds || BACKEND_CONFIG.cacheSeconds <= 0) return getItems_();
 
   const cache = CacheService.getScriptCache();
@@ -37,6 +49,19 @@ function getItemsCached_() {
   const items = getItems_();
   cache.put('itemsJson_v1', JSON.stringify(items), BACKEND_CONFIG.cacheSeconds);
   return items;
+}
+
+function shouldForceRefresh_(e) {
+  return !!(e && e.parameter && e.parameter.refresh);
+}
+
+function getPageMeta_() {
+  return {
+    pageTitle: BACKEND_CONFIG.pageTitle,
+    pageDescription: BACKEND_CONFIG.pageDescription,
+    themeColor: BACKEND_CONFIG.themeColor,
+    faviconUrl: BACKEND_CONFIG.faviconUrl
+  };
 }
 
 function getItems_() {

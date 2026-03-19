@@ -28,8 +28,15 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
   - Items grouped by book name parsed from the filename prefix before the first `.`
   - Relative localized dates (`Today` / `Yesterday` / compact date)
   - Pagination with large controls and 10 items per page
-  - Refresh button for newly uploaded files
+  - Single bottom pager to avoid duplicated navigation controls
+  - Refresh button that forces a full page reload and bypasses short-lived Apps Script cache
   - Optional experimental HTML5 `<audio>` mode kept behind frontend config
+  - Configurable page title/description metadata and favicon support
+  - Default custom favicon uses the Twemoji dragon asset served from jsDelivr
+
+## Icon note
+- The default favicon is the Twemoji dragon (`1f409.svg`) served from jsDelivr's `jdecked/twemoji` package.
+- Twemoji artwork is licensed under CC BY 4.0, so keep attribution in project notes if you continue using that asset.
 - Shows newest files first; auto-generates episode numbering (oldest = #1)
 - Loads a recent backend window and shows the newest 10 files on the first page
 
