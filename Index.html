@@ -31,7 +31,7 @@
       margin: 0;
       color: var(--text);
       background: var(--bg);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: "Atkinson Hyperlegible", "Segoe UI", Verdana, system-ui, sans-serif;
       -webkit-text-size-adjust: 100%;
     }
     .wrap {
@@ -72,7 +72,6 @@
       font-size: var(--meta);
     }
     .langWrap select,
-    .refreshBtn,
     button,
     a.btn {
       min-height: var(--touch);
@@ -89,7 +88,6 @@
       padding: 0 12px;
       width: 82px;
     }
-    .hero,
     .player,
     .feedSection,
     .pager {
@@ -98,55 +96,11 @@
       background: var(--card);
       box-shadow: var(--shadow);
     }
-    .hero {
-      padding: 18px;
-      margin-bottom: 14px;
-    }
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      min-height: 28px;
-      padding: 0 10px;
-      border-radius: 999px;
-      background: var(--accentSoft);
-      color: var(--accent);
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-    .heroTitle {
-      margin: 12px 0 8px;
-      font-size: 22px;
-      line-height: 1.25;
-    }
-    .heroMeta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 14px;
-      color: var(--textSoft);
-      font-size: 14px;
-    }
-    .heroActions,
     .controls,
     .cardActions {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-    }
-    .bookGroup {
-      display: grid;
-      gap: 12px;
-      margin-top: 6px;
-    }
-    .bookHeading {
-      margin: 8px 0 2px;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--text);
-      line-height: 1.2;
-      letter-spacing: -0.01em;
     }
     button,
     a.btn {
@@ -176,8 +130,7 @@
       margin-bottom: 14px;
     }
     .player[hidden],
-    .pager[hidden],
-    .hero[hidden] { display: none; }
+    .pager[hidden] { display: none; }
     .now {
       font-weight: 700;
       margin-bottom: 10px;
@@ -217,19 +170,38 @@
       margin: 0;
       font-size: var(--h2);
     }
-    .refreshBtn {
-      padding: 0 14px;
-      font-size: 14px;
-      font-weight: 600;
-      background: #fff;
-    }
     .list {
       display: grid;
       gap: 12px;
     }
+    .bookSeparator {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0 -6px;
+      color: var(--text);
+    }
+    .bookSeparator:first-child {
+      margin-top: 4px;
+    }
+    .bookSeparator::before,
+    .bookSeparator::after {
+      content: "";
+      flex: 1 1 auto;
+      height: 1px;
+      background: var(--border);
+    }
+    .bookSeparatorTitle {
+      max-width: 76%;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
     .card {
       display: grid;
-      gap: 10px;
+      gap: 9px;
       padding: 14px;
       border-radius: var(--radiusSoft);
       border: 1px solid var(--borderSoft);
@@ -239,6 +211,13 @@
     .card.active {
       border-color: #8bb8af;
       box-shadow: 0 0 0 3px rgba(31, 107, 95, 0.09);
+    }
+    .cardBookTag {
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
     }
     .cardHeader {
       display: flex;
@@ -252,14 +231,17 @@
       line-height: 1.3;
     }
     .cardDate {
-      color: var(--textSoft);
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid #badbd4;
+      background: var(--accentSoft);
+      color: var(--accent);
       font-size: 12px;
+      font-weight: 700;
       white-space: nowrap;
-    }
-    .cardBook {
-      color: var(--textSoft);
-      font-size: 13px;
-      line-height: 1.4;
     }
     .cardPrimary { width: 100%; }
     .debug {
@@ -304,10 +286,9 @@
       .topBar { align-items: stretch; }
       .langWrap { align-items: stretch; }
       .langWrap select { width: 100%; }
-      .heroTitle { font-size: 20px; }
+      .bookSeparatorTitle { font-size: 20px; max-width: 82%; }
       .cardHeader { flex-direction: column; }
       .cardDate { white-space: normal; }
-      .heroActions > *,
       .controls > *,
       .cardActions > * { flex: 1 1 auto; }
     }
@@ -329,15 +310,6 @@
         </select>
       </div>
     </div>
-
-    <section class="hero" id="hero">
-      <div class="eyebrow" id="heroEyebrow"></div>
-      <h2 class="heroTitle" id="heroTitle">Нічого не вибрано</h2>
-      <div class="heroMeta" id="heroMeta"></div>
-      <div class="heroActions">
-        <a class="btn btnPrimary" id="heroOpenDrive" href="#" target="_blank" rel="noopener">Відкрити в Google Drive</a>
-      </div>
-    </section>
 
     <section class="player" id="player" hidden>
       <div class="now" id="now">Нічого не вибрано</div>
@@ -363,7 +335,6 @@
     <section class="feedSection">
       <div class="sectionTop">
         <h2 id="feedTitle">Останні записи</h2>
-        <button class="refreshBtn" id="refreshBtn" type="button">Оновити</button>
       </div>
       <div class="list" id="list"></div>
     </section>
@@ -404,7 +375,6 @@
         appTitle: 'Казки Максиму від тата',
         pageSubtitle: '',
         langLabel: 'Мова',
-        latestBadge: 'Нове',
         latestStories: 'Останні записи',
         nowNothingSelected: 'Нічого не вибрано',
         buttonPrev: '◀ Попередня',
@@ -417,9 +387,7 @@
         buttonFwdTitle: '+30 секунд',
         buttonSelect: 'Вибрати',
         buttonSelectTrack: 'Вибрати запис',
-        buttonRefresh: 'Оновити',
         openInDriveLabel: 'Відкрити в Google Drive',
-        openLatestLabel: 'Відкрити останній запис',
         listenInBrowserLabel: 'Слухати тут',
         continueInDriveLabel: 'Відкрити в Drive',
         statusReady: 'готово',
@@ -433,6 +401,7 @@
         statusBuffering: 'буферизація...',
         statusNetwork: 'мережа...',
         uploadedAt: 'Завантажено: {date}',
+        recordDate: 'Дата: {date}',
         openInDriveHint: 'Відкрийте запис у Google Drive для найнадійнішого відтворення.',
         playbackUnavailableHint: 'Відкрийте запис у Google Drive. Вбудований плеєр вимкнений за замовчуванням для кращої сумісності.',
         noFilesInFolder: 'У папці немає файлів',
@@ -446,14 +415,12 @@
         pagerInfo: 'Сторінка {current} з {total}',
         today: 'Сьогодні',
         yesterday: 'Учора',
-        dayBeforeYesterday: 'Позавчора',
-        byBook: 'Книга: {book}'
+        dayBeforeYesterday: 'Позавчора'
       },
       ru: {
         appTitle: 'Казки Максиму від папи',
         pageSubtitle: '',
         langLabel: 'Язык',
-        latestBadge: 'Сейчас',
         latestStories: 'Последние записи',
         nowNothingSelected: 'Ничего не выбрано',
         buttonPrev: '◀ Предыдущая',
@@ -466,9 +433,7 @@
         buttonFwdTitle: '+30 секунд',
         buttonSelect: 'Выбрать',
         buttonSelectTrack: 'Выбрать запись',
-        buttonRefresh: 'Обновить',
         openInDriveLabel: 'Открыть в Google Drive',
-        openLatestLabel: 'Открыть последнюю запись',
         listenInBrowserLabel: 'Слушать здесь',
         continueInDriveLabel: 'Открыть в Drive',
         statusReady: 'готово',
@@ -482,6 +447,7 @@
         statusBuffering: 'буфер...',
         statusNetwork: 'сеть...',
         uploadedAt: 'Загружено: {date}',
+        recordDate: 'Дата: {date}',
         openInDriveHint: 'Откройте запись в Google Drive для самого надежного воспроизведения.',
         playbackUnavailableHint: 'Откройте запись в Google Drive. Встроенный плеер отключен по умолчанию для лучшей совместимости.',
         noFilesInFolder: 'Нет файлов в папке',
@@ -495,14 +461,12 @@
         pagerInfo: 'Страница {current} из {total}',
         today: 'Сегодня',
         yesterday: 'Вчера',
-        dayBeforeYesterday: 'Позавчера',
-        byBook: 'Книга: {book}'
+        dayBeforeYesterday: 'Позавчера'
       },
       en: {
         appTitle: 'Stories',
         pageSubtitle: '',
         langLabel: 'Language',
-        latestBadge: 'Latest',
         latestStories: 'Recent uploads',
         nowNothingSelected: 'Nothing selected',
         buttonPrev: '◀ Previous',
@@ -515,9 +479,7 @@
         buttonFwdTitle: '+30 seconds',
         buttonSelect: 'Select',
         buttonSelectTrack: 'Select track',
-        buttonRefresh: 'Refresh',
         openInDriveLabel: 'Open in Google Drive',
-        openLatestLabel: 'Open latest recording',
         listenInBrowserLabel: 'Listen here',
         continueInDriveLabel: 'Open in Drive',
         statusReady: 'ready',
@@ -531,6 +493,7 @@
         statusBuffering: 'buffering...',
         statusNetwork: 'network...',
         uploadedAt: 'Uploaded: {date}',
+        recordDate: 'Date: {date}',
         openInDriveHint: 'Open this recording in Google Drive for the most reliable playback.',
         playbackUnavailableHint: 'Open this recording in Google Drive. Embedded playback is disabled by default for better compatibility.',
         noFilesInFolder: 'No files in folder',
@@ -544,8 +507,7 @@
         pagerInfo: 'Page {current} of {total}',
         today: 'Today',
         yesterday: 'Yesterday',
-        dayBeforeYesterday: 'Day before yesterday',
-        byBook: 'Book: {book}'
+        dayBeforeYesterday: 'Day before yesterday'
       }
     };
 
@@ -624,14 +586,8 @@
     var btnBack = $('back10');
     var btnFwd = $('fwd30');
     var openDrive = $('openDrive');
-    var hero = $('hero');
-    var heroEyebrow = $('heroEyebrow');
-    var heroTitle = $('heroTitle');
-    var heroMeta = $('heroMeta');
-    var heroOpenDrive = $('heroOpenDrive');
     var pageSubtitle = $('pageSubtitle');
     var feedTitle = $('feedTitle');
-    var refreshBtn = $('refreshBtn');
     var langLabelEl = $('langLabel');
     var langSelect = $('langSelect');
     var debugBox = $('debugBox');
@@ -813,6 +769,11 @@
       if (text != null) el.textContent = text;
       return el;
     }
+    function makeBookSeparator(book) {
+      var separator = makeEl('div', 'bookSeparator');
+      separator.appendChild(makeEl('div', 'bookSeparatorTitle', book));
+      return separator;
+    }
     function makeLink(text, href, opts) {
       opts = opts || {};
       var a = document.createElement('a');
@@ -846,8 +807,6 @@
       pageSubtitle.hidden = !pageSubtitle.textContent;
       langLabelEl.textContent = t('langLabel');
       feedTitle.textContent = t('latestStories');
-      refreshBtn.textContent = t('buttonRefresh');
-      heroOpenDrive.textContent = t('openLatestLabel');
       now.textContent = t('nowNothingSelected');
       btnPrev.textContent = t('buttonPrev');
       btnPrev.title = t('buttonPrevTitle');
@@ -868,19 +827,6 @@
       savePreferredLang(state.lang);
       applyStaticLabels();
       if (rerender) render(true);
-    }
-    function setHero(track) {
-      if (!track) {
-        hero.hidden = true;
-        return;
-      }
-      hero.hidden = false;
-      heroEyebrow.textContent = t('latestBadge');
-      heroTitle.textContent = track.displayTitle;
-      heroMeta.textContent = '';
-      heroMeta.appendChild(makeEl('span', null, t('uploadedAt', { date: track.displayDate })));
-      if (track.book) heroMeta.appendChild(makeEl('span', null, t('byBook', { book: track.book })));
-      heroOpenDrive.href = track.viewUrl || '#';
     }
     function setAudioSource(url) {
       audio.pause();
@@ -919,7 +865,6 @@
 
       state.currentIndex = index;
       var track = state.flat[index];
-      setHero(track);
       highlightActive();
       updateNavButtons();
 
@@ -1012,26 +957,23 @@
       var startIdx = (state.currentPage - 1) * pageSize;
       var endIdx = Math.min(state.flat.length, startIdx + pageSize);
       var frag = document.createDocumentFragment();
-      var currentGroup = null;
-      var currentBook = '';
 
       for (var idx = startIdx; idx < endIdx; idx++) {
         var track = state.flat[idx];
-        if (!currentGroup || currentBook !== track.book) {
-          currentBook = track.book;
-          currentGroup = makeEl('section', 'bookGroup');
-          if (currentBook) currentGroup.appendChild(makeEl('h3', 'bookHeading', currentBook));
-          frag.appendChild(currentGroup);
+        var previous = idx > 0 ? state.flat[idx - 1] : null;
+        if (track.book && (!previous || track.book !== previous.book)) {
+          frag.appendChild(makeBookSeparator(track.book));
         }
+
         var card = makeEl('article', 'card');
         card.setAttribute('data-idx', String(idx));
 
+        if (track.book) card.appendChild(makeEl('div', 'cardBookTag', track.book));
+
         var header = makeEl('div', 'cardHeader');
         header.appendChild(makeEl('div', 'cardTitle', track.displayTitle));
-        header.appendChild(makeEl('div', 'cardDate', track.displayDate));
+        header.appendChild(makeEl('div', 'cardDate', t('recordDate', { date: track.displayDate })));
         card.appendChild(header);
-
-        if (track.book) card.appendChild(makeEl('div', 'cardBook', t('byBook', { book: track.book })));
 
         var actions = makeEl('div', 'cardActions');
         actions.appendChild(makeLink(t('openInDriveLabel'), track.viewUrl, { newTab: true, primary: true }));
@@ -1044,7 +986,7 @@
             setCurrent(capturedIdx, false);
           });
         })(idx);
-        currentGroup.appendChild(card);
+        frag.appendChild(card);
       }
 
       listEl.appendChild(frag);
@@ -1052,37 +994,21 @@
     }
     function buildFlatTracks(items) {
       state.flat = [];
-      var groupedOrder = [];
-      var groupedMap = {};
       for (var i = 0; i < items.length; i++) {
-        var raw = items[i];
-        var book = safeText(raw.book || '');
-        if (!Object.prototype.hasOwnProperty.call(groupedMap, book)) {
-          groupedMap[book] = [];
-          groupedOrder.push(book);
+        var it = items[i];
+        var displayNumber = null;
+        if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
+        var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? ('#' + displayNumber + '. ') : '';
+        var title = safeText(it.title || it.name || t('defaultTrackTitle'));
+        var track = {};
+        for (var k in it) {
+          if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
         }
-        groupedMap[book].push(raw);
-      }
-
-      for (var g = 0; g < groupedOrder.length; g++) {
-        var groupBook = groupedOrder[g];
-        var arr = groupedMap[groupBook] || [];
-        for (var j = 0; j < arr.length; j++) {
-          var it = arr[j];
-          var displayNumber = null;
-          if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
-          var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? ('#' + displayNumber + '. ') : '';
-          var title = safeText(it.title || it.name || t('defaultTrackTitle'));
-          var track = {};
-          for (var k in it) {
-            if (Object.prototype.hasOwnProperty.call(it, k)) track[k] = it[k];
-          }
-          track.book = safeText(it.book || '');
-          track.name = safeText(it.name || '');
-          track.displayTitle = numberPart + title;
-          track.displayDate = formatDisplayDate(it.createdMs || 0);
-          state.flat.push(track);
-        }
+        track.book = safeText(it.book || '');
+        track.name = safeText(it.name || '');
+        track.displayTitle = numberPart + title;
+        track.displayDate = formatDisplayDate(it.createdMs || 0);
+        state.flat.push(track);
       }
     }
     function render(preserveCurrent) {
@@ -1099,18 +1025,20 @@
       renderCurrentPage();
 
       if (state.flat.length) {
-        setHero(state.flat[0]);
         if (preserveCurrent && state.currentIndex >= 0 && state.currentIndex < state.flat.length) {
           setCurrent(state.currentIndex, false);
-        } else {
+        } else if (isExperimentalAudioMode()) {
           setCurrent(0, CONFIG.autoplayFirstItem);
+        } else {
+          state.currentIndex = -1;
+          highlightActive();
+          updateNavButtons();
         }
         if (!isExperimentalAudioMode()) {
           setStatus(t('statusReady'));
           hint.textContent = t('openInDriveHint');
         }
       } else {
-        hero.hidden = true;
         setStatus(t('statusNoFiles'));
         listEl.appendChild(makeEl('div', 'meta', t('noFilesInFolder')));
         now.textContent = t('noFilesInFolder');
@@ -1124,16 +1052,6 @@
       });
       btnFwd.addEventListener('click', function () {
         audio.currentTime = (audio.currentTime || 0) + CONFIG.seekForwardSeconds;
-      });
-      refreshBtn.addEventListener('click', function () {
-        var url = new URL(window.location.href);
-        var stamp = String(Date.now());
-        url.searchParams.set('refresh', stamp);
-        url.searchParams.set('_', stamp);
-        window.location.replace(url.toString());
-      });
-      heroOpenDrive.addEventListener('click', function () {
-        if (state.flat.length) setCurrent(0, false);
       });
       audio.addEventListener('ended', function () {
         setStatus(t('statusEnded'));

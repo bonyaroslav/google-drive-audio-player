@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Mobile-first Google Drive audio player built with Apps Script</strong><br/>
-  Drive-first playback, recent-feed navigation, book-based grouping, localized UI, and a zero-extra-infrastructure deployment model.
+  Drive-first playback, newest-first list navigation, book separators and labels, localized UI, and a zero-extra-infrastructure deployment model.
 </p>
 
 <p align="center">
@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Playback-Drive--First-1F6FEB" alt="Drive-first playback" />
   <img src="https://img.shields.io/badge/UI-UA%20Default-6F42C1" alt="Ukrainian default UI" />
   <img src="https://img.shields.io/badge/Localization-UA%20%2F%20RU%20%2F%20EN-7A3EFF" alt="Ukrainian Russian English localization" />
-  <img src="https://img.shields.io/badge/Grouping-By%20Book%20Prefix-CB6D51" alt="Grouped by filename book prefix" />
+  <img src="https://img.shields.io/badge/Book%20Markers-From%20Filename%20Prefix-CB6D51" alt="Book markers from filename prefix" />
   <img src="https://img.shields.io/badge/Frontend-Plain%20HTML%20%2B%20JS-F59E0B" alt="Plain HTML and JavaScript frontend" />
   <img src="https://img.shields.io/badge/Infra-Zero%20Extra-2DA44E" alt="Zero extra infrastructure" />
 </p>
@@ -21,15 +21,14 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
 ## What it does
 - Reads audio files from a single Google Drive folder (`.mp3`, `.ogg`, `.m4a`)
 - Renders a web page (Apps Script Web App) with:
-  - Drive-first recent-feed layout optimized for phones
+  - Drive-first newest-first list layout optimized for phones
   - Primary “Open in Google Drive” action for each item
   - UA/RU/EN UI switcher (Ukrainian default)
   - Language preference persisted in cookies and `localStorage` with Ukrainian as the default on fresh clients
-  - Items grouped by book name parsed from the filename prefix before the first `.`
-  - Relative localized dates (`Today` / `Yesterday` / compact date)
+  - Distinct book separators and per-card book labels parsed from the filename prefix before the first `.`
+  - Highlighted relative localized dates (`Today` / `Yesterday` / compact date)
   - Pagination with large controls and 10 items per page
   - Single bottom pager to avoid duplicated navigation controls
-  - Refresh button that forces a full page reload and bypasses short-lived Apps Script cache
   - Optional experimental HTML5 `<audio>` mode kept behind frontend config
   - Configurable page title/description metadata and optional favicon support
 
@@ -42,7 +41,7 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
 ## Architecture (high level)
 - **Storage:** Google Drive folder contains audio files
 - **Backend:** Google Apps Script Web App (`doGet()`) reads Drive folder metadata and injects `itemsJson` into the HTML template
-- **Frontend:** Static HTML + JS builds a recent-feed UI and defaults to Drive viewer playback for better mobile reliability
+- **Frontend:** Static HTML + JS builds a newest-first list UI and defaults to Drive viewer playback for better mobile reliability
 
 Official references:
 - Apps Script Web Apps: https://developers.google.com/apps-script/guides/web

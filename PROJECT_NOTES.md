@@ -43,9 +43,10 @@ Notes:
   - UI language options (`uk`/`ru`/`en`) with Ukrainian default on fresh clients; selected language persisted in versioned cookies and `localStorage`
   - optional resume position via `localStorage`
   - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
-  - recent-feed layout with featured latest item, large card actions, refresh affordance, and iPhone-first sizing
+  - newest-first flat list layout with book separators, per-card book labels, highlighted date chips, large card actions, and iPhone-first sizing
   - list actions: primary button opens Google Drive in a new tab/window; explicit "Select record" buttons are removed
-  - items are grouped by parsed `book` name (filename prefix before the first `.`)
+  - parsed `book` name (filename prefix before the first `.`) is shown as a large separator before a changed-prefix item and as a small label at the start of each card; it does not reorder the newest-first list
+  - readable local font stack prefers Atkinson Hyperlegible when installed, then Segoe UI / Verdana / system sans-serif; no external font files are loaded
 - Defensive rendering:
   - avoid `innerHTML` for user-controlled strings; use DOM + `textContent`.
 - Reliability UX:
@@ -53,7 +54,7 @@ Notes:
   - user-facing errors should be plain guidance; technical details stay in debug logging / console
 - Diagnostics:
   - `?debug=1` in URL enables in-page debug panel and console logs at runtime.
-  - Refresh button adds a cache-busting query parameter and bypasses `CacheService` for that request.
+  - Refresh is browser-native only; the frontend does not add cache-busting query parameters.
   - Page title is set server-side via `HtmlOutput.setTitle()`. Description/theme-color/icon hints are applied client-side because `HtmlService` does not support arbitrary head tags directly.
   - Early bootstrap logger (`window.__bootLog`) is initialized before main app script and captures `window.error` / `unhandledrejection`.
   - UI shows `build` timestamp to verify the active Web App deployment version.
@@ -135,9 +136,9 @@ Android focus:
 **Trade-off:** Returning to page navigation requires scrolling to the list footer.
 
 ### 2026-03-19 — Forced refresh bypasses browser and Apps Script cache
-**Decision:** The refresh button now navigates to the current page with a `refresh` query token, and `doGet(e)` bypasses `CacheService` for that request.  
-**Why:** `window.location.reload()` alone could still show stale data because of browser/app cache and the backend cache TTL.  
-**Trade-off:** Forced refresh generates an extra uncached Drive listing for that request.
+**Decision:** Removed the visible forced-refresh path from the current frontend. Refresh is now browser-native only, and backend cache expires by TTL.
+**Why:** The custom refresh path could leave the deployed page in a broken state for the user.
+**Trade-off:** New uploads may remain hidden until the short cache TTL expires or the user reopens the Web App after deployment cache clears.
 
 ### 2026-03-19 — Centralized page metadata config
 **Decision:** Keep page title, description, theme color, and optional favicon URL in `BACKEND_CONFIG`. Set the title server-side and apply the remaining head metadata client-side.  
@@ -149,10 +150,26 @@ Android focus:
 **Why:** An SVG favicon URL caused runtime failure: `Exception: The favicon icon image type is not supported.`  
 **Trade-off:** Server-side favicon remains unset for now; client-side fallback icon hints may still help some bookmark/tab surfaces but are not equivalent to `setFaviconUrl()`.
 
-### 2026-03-18 — Drive-first mobile playback + recent-feed layout
-**Decision:** Default the UI to `playbackMode: 'driveOnly'`, show a recent-feed layout, and keep embedded HTML audio behind an experimental config flag.  
-**Why:** Google Drive viewer is the more reliable playback path on iPhone 12 Safari/Chrome and on Android browsers.  
+### 2026-03-18 — Drive-first mobile playback + recent list layout
+**Decision:** Default the UI to `playbackMode: 'driveOnly'`, show a recent list layout, and keep embedded HTML audio behind an experimental config flag.
+
+**Why:** Google Drive viewer is the more reliable playback path on iPhone 12 Safari/Chrome and on Android browsers.
+
 **Trade-off:** Default UI no longer exposes in-page seek/player controls unless experimental mode is enabled.
+
+### 2026-05-08 — Remove featured latest section
+**Decision:** Remove the separate featured latest card and render all records in one newest-first list. Show the book name as a large centered separator before an item when the prefix changes from the previous item, repeat it as a small label at the start of each card, and make the date more visible with a small highlighted chip.
+
+**Why:** A standalone latest section can make a second fresh recording easier to miss, especially when recordings are added for different books close together.
+
+**Trade-off:** The newest item no longer gets a larger visual treatment, but every item now follows the same scanning pattern.
+
+### 2026-05-08 — Remove refresh button
+**Decision:** Remove the visible refresh button from the frontend.
+
+**Why:** It could leave the deployed page blank for the user; the list is simpler and safer without it.
+
+**Trade-off:** Users refresh through the browser or reopen the Web App URL; the backend relies on the configured cache TTL.
 
 ---
 
@@ -222,14 +239,14 @@ Small, reversible steps:
    - Use one formatter/helper so labels and dates follow the current UI language.
    - Benefit: faster scanning and less cognitive load.
 
-11) **Drive-first "latest stories" UI**
+11) **Drive-first recent stories UI**
    - Emphasize recent uploads rather than a generic file browser.
-   - Chosen direction: recent-feed layout optimized for iPhone 12 width first, then larger screens.
-   - Example structure: featured latest item at top, then compact recent list below.
+   - Chosen direction: flat newest-first list optimized for iPhone 12 width first, then larger screens.
+   - Each item uses the same card layout, with book-name separators, a small per-card book label, a highlighted date chip, and a clear Drive action.
    - Benefit: matches the real use case better than a file-manager style list.
 
 12) **Sticky date group headers**
-   - Use relative labels where they add value, but keep the chosen recent-feed layout primary.
+   - Use relative labels where they add value, but keep the chosen flat recent-list layout primary.
    - Preferred relative labels: localized `Today`, `Yesterday`, and `Day before yesterday`.
    - For the current direction, lightweight date labels inside cards are preferred over heavier grouped sections.
    - Benefit: easier scanning without turning the page into a file manager.
@@ -249,9 +266,9 @@ Small, reversible steps:
    - Favor one primary action per row and avoid small multi-link clusters.
    - Benefit: better usability on tablets/phones and for non-technical users.
 
-16) **Refresh affordance for recent content**
-   - Add a visible refresh action and optionally pull-to-refresh semantics on mobile/tablet.
-   - Benefit: aligns with recency-based content patterns and reduces confusion after new uploads.
+16) **Refresh behavior for recent content**
+   - Keep refresh behavior to browser reload and the backend cache TTL.
+   - Benefit: avoids a broken in-app refresh path while preserving operational simplicity.
 
 17) **iPhone-first interaction polish**
    - Design and test for iPhone 12 width as the primary mobile target.
@@ -266,9 +283,10 @@ Small, reversible steps:
    - Benefit: better server-side efficiency and faster first paint for mobile users.
 
 ### UI direction ideas worth considering
-- **Chosen direction: recent-feed layout**
-  - newest item featured at top
-  - remaining items as simple cards sorted newest-first
+- **Chosen direction: flat recent list**
+  - all items use the same simple card layout
+  - cards stay sorted newest-first
+  - book names appear as separators before changed-prefix items and repeat as small labels inside cards
   - compact readable dates localized to the UI language
 - **Minimal mobile-first layout**
   - one primary action
@@ -278,7 +296,7 @@ Small, reversible steps:
 - **Drive-native trust cues**
   - show clearly that playback opens in Google Drive, so the UI matches the actual supported behavior
 - **Recent-first hierarchy**
-  - visually separate "latest" from "older recent" items without adding complex controls
+  - keep newest-first order obvious without a separate latest section
 
 ### Decisions needed from product owner
 Resolved:
@@ -286,7 +304,7 @@ Resolved:
 2) Experimental embedded `<audio>` path should remain hidden behind a config flag.
 3) Backend should show only the newest 10 items.
 4) Sorting should use created date.
-5) UI should use a recent-feed layout.
+5) UI should use a flat newest-first recent list.
 6) Dates should be localized to the active UI language and prefer `Today` / `Yesterday` / `Day before yesterday`, otherwise `Thu, 18 Mar 2026` style output.
 7) On iPhone, the primary open action should use a new tab/window.
 8) Backend listing should remain on `DriveApp` unless a stronger case for Advanced Drive service is found during implementation.
@@ -300,6 +318,6 @@ Open implementation questions:
 3) Move technical errors to console/debug only; simplify user-facing messages.
 4) Implement efficient backend limiting to the newest 10 items.
 5) Switch date display to localized relative labels and localized compact dates.
-6) Apply the recent-feed mobile-first layout for iPhone 12.
+6) Apply the flat recent-list mobile-first layout for iPhone 12.
 7) Simplify copy around Drive-first playback.
 8) Remove obsolete experimental playback code only if it is no longer useful even behind config.

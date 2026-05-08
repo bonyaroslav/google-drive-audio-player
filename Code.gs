@@ -6,7 +6,7 @@
  * - Injects itemsJson into Index.html template
  */
 
-const BACKEND_CONFIG = {
+var BACKEND_CONFIG = {
   timezone: 'Europe/Madrid',
   cacheSeconds: 120,
   maxFiles: 100,
@@ -19,13 +19,13 @@ const BACKEND_CONFIG = {
 };
 
 function doGet(e) {
-  const items = getItemsCached_(shouldForceRefresh_(e));
-  const tpl = HtmlService.createTemplateFromFile('Index');
+  var items = getItemsCached_();
+  var tpl = HtmlService.createTemplateFromFile('Index');
   tpl.itemsJson = safeJson_(items);
   tpl.buildId = Utilities.formatDate(new Date(), BACKEND_CONFIG.timezone, "yyyy-MM-dd HH:mm:ss");
   tpl.pageMetaJson = safeJson_(getPageMeta_());
 
-  let output = tpl.evaluate()
+  var output = tpl.evaluate()
     .setTitle(BACKEND_CONFIG.pageTitle)
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 
@@ -36,23 +36,18 @@ function doGet(e) {
   return output;
 }
 
-function getItemsCached_(forceRefresh) {
-  if (forceRefresh) return getItems_();
+function getItemsCached_() {
   if (!BACKEND_CONFIG.cacheSeconds || BACKEND_CONFIG.cacheSeconds <= 0) return getItems_();
 
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get('itemsJson_v1');
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('itemsJson_v2');
   if (cached) {
-    try { return JSON.parse(cached); } catch { /* fallthrough */ }
+    try { return JSON.parse(cached); } catch (err) { /* fallthrough */ }
   }
 
-  const items = getItems_();
-  cache.put('itemsJson_v1', JSON.stringify(items), BACKEND_CONFIG.cacheSeconds);
+  var items = getItems_();
+  cache.put('itemsJson_v2', JSON.stringify(items), BACKEND_CONFIG.cacheSeconds);
   return items;
-}
-
-function shouldForceRefresh_(e) {
-  return !!(e && e.parameter && e.parameter.refresh);
 }
 
 function getPageMeta_() {
@@ -65,44 +60,44 @@ function getPageMeta_() {
 }
 
 function getItems_() {
-  const folderId = getFolderId_();
-  const folder = DriveApp.getFolderById(folderId);
-  const it = folder.getFiles();
+  var folderId = getFolderId_();
+  var folder = DriveApp.getFolderById(folderId);
+  var it = folder.getFiles();
 
-  const out = [];
+  var out = [];
   while (it.hasNext()) {
-    const f = it.next();
-    const name = f.getName();
-    const lower = name.toLowerCase();
+    var f = it.next();
+    var name = f.getName();
+    var lower = name.toLowerCase();
 
     // Only audio formats you care about
     if (!isAllowedAudioFile_(lower)) continue;
 
-    const created = f.getDateCreated();         // stable for "when it first appeared"
-    const id = f.getId();
+    var created = f.getDateCreated();         // stable for "when it first appeared"
+    var id = f.getId();
 
     out.push({
-      id,
-      name,
+      id: id,
+      name: name,
       createdMs: created.getTime(),
       createdStr: Utilities.formatDate(created, BACKEND_CONFIG.timezone, 'yyyy-MM-dd'),
       book: parseBook_(name),
       title: parseTitle_(name),
       // Kept for optional experimental HTML audio mode.
       // Default UX opens Google Drive's viewer for better mobile reliability.
-      url: `https://drive.google.com/uc?export=download&id=${id}`,
-      viewUrl: `https://drive.google.com/file/d/${id}/view`
+      url: 'https://drive.google.com/uc?export=download&id=' + encodeURIComponent(id),
+      viewUrl: 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view'
     });
   }
 
   // Numbering: 1 = oldest, N = newest
-  out.sort((a, b) => a.createdMs - b.createdMs);
-  out.forEach((x, idx) => x.number = idx + 1);
+  out.sort(function (a, b) { return a.createdMs - b.createdMs; });
+  out.forEach(function (x, idx) { x.number = idx + 1; });
 
   // Display: newest first
-  out.sort((a, b) => b.createdMs - a.createdMs);
+  out.sort(function (a, b) { return b.createdMs - a.createdMs; });
 
-  const maxFiles = Number(BACKEND_CONFIG.maxFiles);
+  var maxFiles = Number(BACKEND_CONFIG.maxFiles);
   if (isFinite(maxFiles) && maxFiles > 0 && out.length > maxFiles) {
     return out.slice(0, Math.floor(maxFiles));
   }
@@ -112,14 +107,14 @@ function getItems_() {
 
 // Naming convention support: "Book Title.Chapter 1-3.mp3" or "Book Title. Chapter 1-3.mp3"
 function parseBook_(filename) {
-  const base = filename.replace(/\.[^.]+$/, '');
-  const dotIndex = base.indexOf('.');
+  var base = filename.replace(/\.[^.]+$/, '');
+  var dotIndex = base.indexOf('.');
   if (dotIndex > 0) return base.slice(0, dotIndex).trim();
   return BACKEND_CONFIG.defaultBook;
 }
 
 function getFolderId_() {
-  const folderId = (PropertiesService.getScriptProperties().getProperty('FOLDER_ID') || '').trim();
+  var folderId = (PropertiesService.getScriptProperties().getProperty('FOLDER_ID') || '').trim();
   if (!folderId) {
     throw new Error('Missing required Script Property: FOLDER_ID');
   }
@@ -127,24 +122,25 @@ function getFolderId_() {
 }
 
 function parseTitle_(filename) {
-  const base = filename.replace(/\.[^.]+$/, '');
-  const dotIndex = base.indexOf('.');
+  var base = filename.replace(/\.[^.]+$/, '');
+  var dotIndex = base.indexOf('.');
   if (dotIndex > 0) {
-    const title = base.slice(dotIndex + 1).trim();
+    var title = base.slice(dotIndex + 1).trim();
     return title || base;
   }
   return base;
 }
 
 function isAllowedAudioFile_(lowerName) {
-  const extensions = BACKEND_CONFIG.allowedExtensions || [];
-  for (let i = 0; i < extensions.length; i += 1) {
-    if (lowerName.endsWith(String(extensions[i]).toLowerCase())) return true;
+  var extensions = BACKEND_CONFIG.allowedExtensions || [];
+  for (var i = 0; i < extensions.length; i += 1) {
+    var ext = String(extensions[i]).toLowerCase();
+    if (lowerName.slice(-ext.length) === ext) return true;
   }
   return false;
 }
 
-// IMPORTANT: protect the template injection from breaking <script> content
+// IMPORTANT: protect the template injection from breaking script tag content.
 function safeJson_(obj) {
   return JSON.stringify(obj)
     .replace(/</g, '\\u003c')
