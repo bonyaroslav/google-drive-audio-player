@@ -9,14 +9,17 @@
   <img src="https://img.shields.io/badge/Google%20Apps%20Script-Web%20App-4285F4?logo=googleappsscript&logoColor=white" alt="Google Apps Script Web App" />
   <img src="https://img.shields.io/badge/Google%20Drive-Audio%20Source-0F9D58?logo=googledrive&logoColor=white" alt="Google Drive audio source" />
   <img src="https://img.shields.io/badge/Playback-Drive--First-1F6FEB" alt="Drive-first playback" />
-  <img src="https://img.shields.io/badge/UI-UA%20Default-6F42C1" alt="Ukrainian default UI" />
   <img src="https://img.shields.io/badge/Localization-UA%20%2F%20RU%20%2F%20EN-7A3EFF" alt="Ukrainian Russian English localization" />
-  <img src="https://img.shields.io/badge/Book%20Markers-From%20Filename%20Prefix-CB6D51" alt="Book markers from filename prefix" />
   <img src="https://img.shields.io/badge/Frontend-Plain%20HTML%20%2B%20JS-F59E0B" alt="Plain HTML and JavaScript frontend" />
-  <img src="https://img.shields.io/badge/Infra-Zero%20Extra-2DA44E" alt="Zero extra infrastructure" />
 </p>
 
 A small **Google-only** web app that turns a Drive folder into a focused audio page optimized for phone use. The default playback path opens files in **Google Drive** for better reliability on iPhone and Android, while an experimental in-page player remains available behind config.
+
+<p align="center">
+  <img src="docs/screenshot_1.jpg" alt="Stories player on iPhone — newest-first list with global episode numbers, book separators, date chips, and a compact pager" width="320" />
+  <br/>
+  <sub><i>Live on iPhone 14 Pro Safari — global numbering (172, 171, 170…), book separators, relative date chips, and the compact <code>« ‹‹ ‹ Page X / Y › ›› »</code> pager.</i></sub>
+</p>
 
 ## What it does
 - Reads audio files from a single Google Drive folder (`.mp3`, `.ogg`, `.m4a`)
