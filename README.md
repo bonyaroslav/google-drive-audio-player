@@ -27,16 +27,17 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
   - Language preference persisted in cookies and `localStorage` with Ukrainian as the default on fresh clients
   - Distinct book separators and per-card book labels parsed from the filename prefix before the first `.`
   - Highlighted relative localized dates (`Today` / `Yesterday` / compact date)
-  - Pagination with large controls and 10 items per page
-  - Single bottom pager to avoid duplicated navigation controls
+  - Server-backed older/newer pagination with 10 items per page
+  - Single compact bottom pager that can continue to the end of the Drive folder
+  - Hard-coded low-light dark UI for nighttime phone use
   - Optional experimental HTML5 `<audio>` mode kept behind frontend config
   - Configurable page title/description metadata and optional favicon support
 
 ## Icon note
 - Apps Script `HtmlOutput.setFaviconUrl()` should use a browser-supported favicon image type such as PNG or ICO.
 - SVG URLs should not be used here; keep `BACKEND_CONFIG.faviconUrl` empty until you have a supported public HTTPS PNG/ICO asset.
-- Shows newest files first; auto-generates episode numbering (oldest = #1)
-- Loads a recent backend window and shows the newest 10 files on the first page
+- Shows newest files first; exact global episode numbering is skipped in server-paged mode
+- Loads the newest 10 files first and fetches older pages on demand
 
 ## Architecture (high level)
 - **Storage:** Google Drive folder contains audio files
@@ -45,7 +46,8 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
 
 Official references:
 - Apps Script Web Apps: https://developers.google.com/apps-script/guides/web
-- Drive service in Apps Script (`DriveApp`): https://developers.google.com/apps-script/reference/drive
+- Advanced Drive service in Apps Script: https://developers.google.com/apps-script/advanced/drive
+- Drive API files list: https://developers.google.com/workspace/drive/api/reference/rest/v3/files/list
 - HtmlService templates: https://developers.google.com/apps-script/guides/html/templates
 - HTML `<audio>` element: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/audio
 
@@ -65,7 +67,7 @@ Each audio item looks like:
   "createdStr": "2026-02-18 21:30",
   "book": "Book",
   "title": "Chapter 1-3",
-  "number": 42,
+  "number": null,
   "url": "https://drive.google.com/uc?export=download&id=DriveFileId",
   "viewUrl": "https://drive.google.com/file/d/DriveFileId/view"
 }
@@ -77,10 +79,16 @@ Each audio item looks like:
    - `Code.gs`
    - `Index.html`
 3. Open `Project Settings` -> `Script properties`.
-4. Add property:
+4. Add the Advanced Drive service:
+   - In the Apps Script editor, next to `Services`, click `+`.
+   - Select `Drive API`.
+   - Keep the identifier as `Drive`.
+   - Add it with API version `v3`.
+   - If your Apps Script project uses a standard Google Cloud project, also enable the Drive API in that Cloud project.
+5. Add property:
    - Key: `FOLDER_ID`
    - Value: your Google Drive folder ID (the folder that contains audio files).
-5. Ensure Apps Script has permission to read that folder.
+6. Ensure Apps Script has permission to read that folder.
 
 ## Deploy
 1. In Apps Script, click `Deploy` -> `New deployment`.

@@ -9,30 +9,40 @@
       --maxWidth: 880px;
       --radius: 18px;
       --radiusSoft: 14px;
-      --border: #d7d2cb;
-      --borderSoft: #ece6de;
-      --text: #1f1a17;
-      --textSoft: #6a625c;
-      --bg: linear-gradient(180deg, #f7f1e8 0%, #fbf8f3 100%);
-      --card: rgba(255, 252, 247, 0.94);
-      --cardStrong: #fffaf2;
-      --accent: #1f6b5f;
-      --accentSoft: #dff1ec;
-      --shadow: 0 10px 24px rgba(57, 44, 34, 0.08);
-      --shadowSoft: 0 4px 10px rgba(57, 44, 34, 0.05);
+      --border: rgba(174, 207, 217, 0.24);
+      --borderSoft: rgba(174, 207, 217, 0.14);
+      --text: #f5f7fb;
+      --textSoft: #9daec1;
+      --bgBase: #07111f;
+      --bg:
+        linear-gradient(180deg, rgba(20, 43, 66, 0.68) 0%, rgba(7, 17, 31, 0.94) 42%, #050911 100%);
+      --glass: rgba(13, 25, 41, 0.62);
+      --glassStrong: rgba(19, 35, 55, 0.78);
+      --card: rgba(14, 25, 40, 0.56);
+      --cardStrong: rgba(19, 34, 53, 0.74);
+      --accent: #8be9d0;
+      --accentDeep: #1f7a71;
+      --accentSoft: rgba(139, 233, 208, 0.14);
+      --focus: #b9a7ff;
+      --shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+      --shadowSoft: 0 10px 24px rgba(0, 0, 0, 0.22);
       --touch: 48px;
       --h1: 28px;
       --h2: 18px;
       --meta: 13px;
     }
     * { box-sizing: border-box; }
-    html { background: #f7f1e8; }
+    html {
+      background: var(--bgBase);
+      color-scheme: dark;
+    }
     body {
       margin: 0;
       color: var(--text);
       background: var(--bg);
       font-family: "Atkinson Hyperlegible", "Segoe UI", Verdana, system-ui, sans-serif;
       -webkit-text-size-adjust: 100%;
+      min-height: 100svh;
     }
     .wrap {
       max-width: var(--maxWidth);
@@ -77,24 +87,27 @@
       min-height: var(--touch);
       border-radius: 14px;
       border: 1px solid var(--border);
-      background: #fff;
+      background: var(--glassStrong);
       color: var(--text);
       font: inherit;
       text-decoration: none;
       cursor: pointer;
       box-shadow: var(--shadowSoft);
+      -webkit-tap-highlight-color: transparent;
     }
     .langWrap select {
       padding: 0 12px;
       width: 82px;
+      color: var(--text);
     }
     .player,
-    .feedSection,
     .pager {
       border: 1px solid var(--borderSoft);
       border-radius: var(--radius);
       background: var(--card);
       box-shadow: var(--shadow);
+      -webkit-backdrop-filter: blur(18px) saturate(1.25);
+      backdrop-filter: blur(18px) saturate(1.25);
     }
     .controls,
     .cardActions {
@@ -114,11 +127,11 @@
     }
     .btnPrimary {
       background: var(--accent);
-      color: #fff;
+      color: #06111b;
       border-color: var(--accent);
     }
     .btnSoft {
-      background: #fff;
+      background: var(--glassStrong);
     }
     button[disabled] {
       opacity: 0.45;
@@ -154,11 +167,11 @@
       border-radius: 999px;
       border: 1px solid var(--borderSoft);
       color: var(--textSoft);
-      background: #fff;
+      background: var(--glass);
       font-size: 12px;
       font-weight: 600;
     }
-    .feedSection { padding: 16px; }
+    .feedSection { padding: 4px 0 0; }
     .sectionTop {
       display: flex;
       justify-content: space-between;
@@ -206,11 +219,17 @@
       border-radius: var(--radiusSoft);
       border: 1px solid var(--borderSoft);
       background: var(--cardStrong);
-      transition: border-color .15s ease, box-shadow .15s ease;
+      box-shadow: var(--shadowSoft);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      backdrop-filter: blur(18px) saturate(1.2);
+      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
     }
     .card.active {
-      border-color: #8bb8af;
-      box-shadow: 0 0 0 3px rgba(31, 107, 95, 0.09);
+      border-color: rgba(139, 233, 208, 0.68);
+      box-shadow: 0 0 0 3px rgba(139, 233, 208, 0.12), var(--shadowSoft);
+    }
+    .card:active {
+      transform: scale(0.992);
     }
     .cardBookTag {
       color: var(--accent);
@@ -249,7 +268,7 @@
       border: 1px dashed var(--border);
       border-radius: var(--radiusSoft);
       padding: 10px;
-      background: #fff;
+      background: var(--glass);
       display: none;
     }
     .debug pre {
@@ -274,12 +293,18 @@
     }
     .pagerBtn.active {
       background: var(--accentSoft);
-      border-color: #8bb8af;
+      border-color: rgba(139, 233, 208, 0.68);
     }
     .pageInfo {
       color: var(--textSoft);
       font-size: 14px;
       margin-left: 4px;
+    }
+    button:focus-visible,
+    a.btn:focus-visible,
+    select:focus-visible {
+      outline: 3px solid rgba(185, 167, 255, 0.72);
+      outline-offset: 2px;
     }
     @media (max-width: 430px) {
       .wrap { padding-left: 12px; padding-right: 12px; }
@@ -344,6 +369,7 @@
 
   <script id="itemsData" type="application/json"><?!= itemsJson ?></script>
   <script id="pageMetaData" type="application/json"><?!= pageMetaJson ?></script>
+  <script id="pageStateData" type="application/json"><?!= pageStateJson ?></script>
   <script>
     (function () {
       var logs = [];
@@ -408,11 +434,12 @@
         defaultTrackTitle: 'Казка',
         debugTitle: 'Debug',
         debugHint: '(toggle in CONFIG)',
-        pagerFirst: '«',
-        pagerPrev: '‹',
-        pagerNext: '›',
-        pagerLast: '»',
-        pagerInfo: 'Сторінка {current} з {total}',
+        pagerNewer: 'Новіші',
+        pagerOlder: 'Старіші',
+        pagerLoading: 'Завантаження...',
+        pagerPage: 'Сторінка {current}',
+        pagerEnd: 'Кінець списку',
+        pagerLoadError: 'Не вдалося завантажити сторінку',
         today: 'Сьогодні',
         yesterday: 'Учора',
         dayBeforeYesterday: 'Позавчора'
@@ -454,11 +481,12 @@
         defaultTrackTitle: 'Сказка',
         debugTitle: 'Debug',
         debugHint: '(toggle in CONFIG)',
-        pagerFirst: '«',
-        pagerPrev: '‹',
-        pagerNext: '›',
-        pagerLast: '»',
-        pagerInfo: 'Страница {current} из {total}',
+        pagerNewer: 'Новее',
+        pagerOlder: 'Старее',
+        pagerLoading: 'Загрузка...',
+        pagerPage: 'Страница {current}',
+        pagerEnd: 'Конец списка',
+        pagerLoadError: 'Не удалось загрузить страницу',
         today: 'Сегодня',
         yesterday: 'Вчера',
         dayBeforeYesterday: 'Позавчера'
@@ -500,11 +528,12 @@
         defaultTrackTitle: 'Story',
         debugTitle: 'Debug',
         debugHint: '(toggle in CONFIG)',
-        pagerFirst: '«',
-        pagerPrev: '‹',
-        pagerNext: '›',
-        pagerLast: '»',
-        pagerInfo: 'Page {current} of {total}',
+        pagerNewer: 'Newer',
+        pagerOlder: 'Older',
+        pagerLoading: 'Loading...',
+        pagerPage: 'Page {current}',
+        pagerEnd: 'End of list',
+        pagerLoadError: 'Could not load page',
         today: 'Today',
         yesterday: 'Yesterday',
         dayBeforeYesterday: 'Day before yesterday'
@@ -514,7 +543,6 @@
     var CONFIG = {
       defaultLanguage: 'uk',
       rememberLanguage: true,
-      itemsPerPage: 10,
       playbackMode: 'driveOnly',
       autoplayOnSelect: true,
       autoplayFirstItem: false,
@@ -568,10 +596,32 @@
         return {};
       }
     }
+    function parsePageStateFromDom() {
+      try {
+        var node = document.getElementById('pageStateData');
+        var raw = node ? node.textContent : '{}';
+        var parsed = JSON.parse(raw || '{}');
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (e) {
+        console.error('Failed to parse pageStateJson', e);
+        return {};
+      }
+    }
 
     var ITEMS = parseItemsFromDom();
     var PAGE_META = parsePageMetaFromDom();
-    var state = { flat: [], currentIndex: -1, currentPage: 1, lang: 'uk' };
+    var PAGE_STATE = parsePageStateFromDom();
+    var state = {
+      flat: [],
+      pages: [ITEMS],
+      currentIndex: -1,
+      currentPage: 1,
+      nextPageToken: safeText(PAGE_STATE.nextPageToken || ''),
+      hasMore: !!PAGE_STATE.hasMore,
+      loadingPage: false,
+      pageLoadError: false,
+      lang: 'uk'
+    };
 
     function $(id) { return document.getElementById(id); }
     var audio = $('audio');
@@ -702,17 +752,21 @@
     }
     function safeText(s) { return s == null ? '' : String(s); }
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-    function getPageSize() {
-      var n = Number(CONFIG.itemsPerPage);
-      if (!isFinite(n) || n < 1) return 10;
-      return Math.floor(n);
+    function getLoadedPageCount() {
+      return Math.max(1, state.pages.length);
     }
-    function getTotalPages() {
-      var pageSize = getPageSize();
-      return Math.max(1, Math.ceil(state.flat.length / pageSize));
+    function getCurrentItems() {
+      return state.pages[state.currentPage - 1] || [];
     }
-    function pageForIndex(index) { return Math.floor(index / getPageSize()) + 1; }
-    function clampPage(page) { return clamp(page, 1, getTotalPages()); }
+    function hasLoadedOlderPage() {
+      return state.currentPage < state.pages.length;
+    }
+    function canGoOlder() {
+      return !state.loadingPage && (hasLoadedOlderPage() || state.hasMore);
+    }
+    function clampLoadedPage(page) {
+      return clamp(page, 1, getLoadedPageCount());
+    }
     function storageKeyForTrack(track) {
       return track && (track.id ? 'pos:' + track.id : 'pos:' + track.url);
     }
@@ -856,13 +910,6 @@
       if (typeof autoplay === 'undefined') autoplay = CONFIG.autoplayOnSelect;
       if (index < 0 || index >= state.flat.length) return;
 
-      var targetPage = pageForIndex(index);
-      if (targetPage !== state.currentPage) {
-        state.currentPage = targetPage;
-        renderPager();
-        renderCurrentPage();
-      }
-
       state.currentIndex = index;
       var track = state.flat[index];
       highlightActive();
@@ -906,59 +953,95 @@
     function prev() {
       if (state.currentIndex - 1 >= 0) setCurrent(state.currentIndex - 1, true);
     }
-    function getPageWindow(total, current, visibleCount) {
-      var count = Math.max(1, visibleCount || 5);
-      var start = Math.max(1, current - Math.floor(count / 2));
-      var end = Math.min(total, start + count - 1);
-      start = Math.max(1, end - count + 1);
-      return { start: start, end: end };
-    }
-    function renderPagerInto(container, totalPages, currentPage) {
+    function renderPagerInto(container) {
       container.textContent = '';
-      container.hidden = totalPages <= 1;
-      if (totalPages <= 1) return;
+      container.hidden = state.pages.length <= 1 && !state.hasMore && !state.loadingPage;
+      if (container.hidden) return;
 
       var frag = document.createDocumentFragment();
-      function addButton(label, targetPage, disabled, active) {
+      function addButton(label, disabled, onClick) {
         var btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'pagerBtn' + (active ? ' active' : '');
+        btn.className = 'pagerBtn';
         btn.textContent = label;
         btn.disabled = !!disabled;
-        if (!disabled) {
-          btn.addEventListener('click', function () {
-            state.currentPage = clampPage(targetPage);
-            renderPager();
-            renderCurrentPage();
-          });
-        }
+        if (!disabled && onClick) btn.addEventListener('click', onClick);
         frag.appendChild(btn);
       }
 
-      addButton(t('pagerFirst'), 1, currentPage <= 1, false);
-      addButton(t('pagerPrev'), currentPage - 1, currentPage <= 1, false);
-      var windowPages = getPageWindow(totalPages, currentPage, 5);
-      for (var p = windowPages.start; p <= windowPages.end; p++) {
-        addButton(String(p), p, false, p === currentPage);
+      addButton(t('pagerNewer'), state.loadingPage || state.currentPage <= 1, goNewer);
+      addButton(state.loadingPage ? t('pagerLoading') : t('pagerOlder'), !canGoOlder(), goOlder);
+
+      var info = t('pagerPage', { current: state.currentPage });
+      if (!state.hasMore && state.currentPage === state.pages.length) {
+        info += ' · ' + t('pagerEnd');
       }
-      addButton(t('pagerNext'), currentPage + 1, currentPage >= totalPages, false);
-      addButton(t('pagerLast'), totalPages, currentPage >= totalPages, false);
-      frag.appendChild(makeEl('span', 'pageInfo', t('pagerInfo', { current: currentPage, total: totalPages })));
+      if (state.pageLoadError) {
+        info += ' · ' + t('pagerLoadError');
+      }
+      frag.appendChild(makeEl('span', 'pageInfo', info));
       container.appendChild(frag);
     }
     function renderPager() {
-      var totalPages = getTotalPages();
-      state.currentPage = clampPage(state.currentPage);
-      renderPagerInto(pagerBottom, totalPages, state.currentPage);
+      state.currentPage = clampLoadedPage(state.currentPage);
+      renderPagerInto(pagerBottom);
+    }
+    function goNewer() {
+      if (state.loadingPage || state.currentPage <= 1) return;
+      state.pageLoadError = false;
+      state.currentPage = clampLoadedPage(state.currentPage - 1);
+      state.currentIndex = -1;
+      renderPageFromState();
+    }
+    function goOlder() {
+      if (!canGoOlder()) return;
+      if (hasLoadedOlderPage()) {
+        state.pageLoadError = false;
+        state.currentPage = clampLoadedPage(state.currentPage + 1);
+        state.currentIndex = -1;
+        renderPageFromState();
+        return;
+      }
+      loadOlderPage();
+    }
+    function loadOlderPage() {
+      if (!state.hasMore || state.loadingPage) return;
+      if (!window.google || !google.script || !google.script.run) {
+        state.pageLoadError = true;
+        log('google.script.run is unavailable');
+        renderPager();
+        return;
+      }
+
+      state.loadingPage = true;
+      state.pageLoadError = false;
+      renderPager();
+      google.script.run
+        .withSuccessHandler(function (page) {
+          page = page || {};
+          var items = Object.prototype.toString.call(page.items) === '[object Array]' ? page.items : [];
+          state.pages.push(items);
+          state.nextPageToken = safeText(page.nextPageToken || '');
+          state.hasMore = !!page.hasMore;
+          state.loadingPage = false;
+          state.pageLoadError = false;
+          state.currentPage = state.pages.length;
+          state.currentIndex = -1;
+          renderPageFromState();
+        })
+        .withFailureHandler(function (err) {
+          state.loadingPage = false;
+          state.pageLoadError = true;
+          log('loadOlderPage failed', err && err.message ? err.message : err);
+          renderPager();
+        })
+        .getItemsPage(state.nextPageToken);
     }
     function renderCurrentPage() {
       listEl.textContent = '';
-      var pageSize = getPageSize();
-      var startIdx = (state.currentPage - 1) * pageSize;
-      var endIdx = Math.min(state.flat.length, startIdx + pageSize);
       var frag = document.createDocumentFragment();
 
-      for (var idx = startIdx; idx < endIdx; idx++) {
+      for (var idx = 0; idx < state.flat.length; idx++) {
         var track = state.flat[idx];
         var previous = idx > 0 ? state.flat[idx - 1] : null;
         if (track.book && (!previous || track.book !== previous.book)) {
@@ -1011,6 +1094,27 @@
         state.flat.push(track);
       }
     }
+    function renderPageFromState() {
+      buildFlatTracks(getCurrentItems());
+      renderPager();
+      renderCurrentPage();
+
+      if (state.flat.length) {
+        if (isExperimentalAudioMode()) {
+          setCurrent(0, CONFIG.autoplayFirstItem);
+        } else {
+          state.currentIndex = -1;
+          highlightActive();
+          updateNavButtons();
+          setStatus(t('statusReady'));
+          hint.textContent = t('openInDriveHint');
+        }
+      } else {
+        setStatus(t('statusNoFiles'));
+        listEl.appendChild(makeEl('div', 'meta', t('noFilesInFolder')));
+        now.textContent = t('noFilesInFolder');
+      }
+    }
     function render(preserveCurrent) {
       if (CONFIG.debug) {
         debugBox.style.display = 'block';
@@ -1018,9 +1122,8 @@
       }
 
       player.hidden = !isExperimentalAudioMode();
-      var items = Object.prototype.toString.call(ITEMS) === '[object Array]' ? ITEMS : [];
-      buildFlatTracks(items);
-      state.currentPage = clampPage(state.currentPage);
+      state.currentPage = clampLoadedPage(state.currentPage);
+      buildFlatTracks(getCurrentItems());
       renderPager();
       renderCurrentPage();
 
