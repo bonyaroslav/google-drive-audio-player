@@ -1,16 +1,17 @@
 /**
  * Apps Script Web App backend for "Stories" page
- * - Reads audio files from a Drive folder
+ * - Reads ALL audio files from a Drive folder (newest-first)
  * - Builds an array of items:
- *   { id, name, createdMs, createdStr, book, title, number, url, viewUrl }
- * - Injects itemsJson into Index.html template
+ *   { id, name, createdMs, book, title, number, url, viewUrl }
+ * - Assigns global episode numbers (newest = total count, oldest = 1)
+ * - Injects itemsJson into Index.html template; the frontend paginates client-side
  */
 
 var BACKEND_CONFIG = {
   timezone: 'Europe/Madrid',
   cacheSeconds: 120,
-  pageSize: 10,
-  driveListBatchSize: 50,
+  driveListBatchSize: 100,
+  maxItems: 2000,
   allowedExtensions: ['.mp3', '.ogg', '.m4a'],
   defaultBook: 'Казки',
   pageTitle: 'Казки - аудіо з Google Drive',
@@ -20,10 +21,10 @@ var BACKEND_CONFIG = {
 };
 
 function doGet(e) {
-  var page = getInitialItemsPageCached_();
+  var items = getAllAudioItemsCached_();
   var tpl = HtmlService.createTemplateFromFile('Index');
-  tpl.itemsJson = safeJson_(page.items);
-  tpl.pageStateJson = safeJson_(getInitialPageState_(page));
+  tpl.itemsJson = safeJson_(items);
+  tpl.totalCount = items.length;
   tpl.buildId = Utilities.formatDate(new Date(), BACKEND_CONFIG.timezone, "yyyy-MM-dd HH:mm:ss");
   tpl.pageMetaJson = safeJson_(getPageMeta_());
 
@@ -38,29 +39,22 @@ function doGet(e) {
   return output;
 }
 
-function getInitialItemsPageCached_() {
-  if (!BACKEND_CONFIG.cacheSeconds || BACKEND_CONFIG.cacheSeconds <= 0) return getItemsPage_('');
+function getAllAudioItemsCached_() {
+  if (!BACKEND_CONFIG.cacheSeconds || BACKEND_CONFIG.cacheSeconds <= 0) return getAllAudioItems_();
 
   var cache = CacheService.getScriptCache();
-  var cached = cache.get('itemsPage_v3');
+  var cached = cache.get('itemsAll_v1');
   if (cached) {
     try { return JSON.parse(cached); } catch (err) { /* fallthrough */ }
   }
 
-  var page = getItemsPage_('');
-  cache.put('itemsPage_v3', JSON.stringify(page), BACKEND_CONFIG.cacheSeconds);
-  return page;
-}
-
-function getInitialPageState_(page) {
-  return {
-    nextPageToken: page.nextPageToken || '',
-    hasMore: !!page.hasMore
-  };
-}
-
-function getItemsPage(pageToken) {
-  return getItemsPage_(pageToken || '');
+  var items = getAllAudioItems_();
+  // Cache values are capped at ~100KB; if the payload is larger put() is a no-op
+  // and we simply recompute on the next load. That keeps the app working either way.
+  try {
+    cache.put('itemsAll_v1', JSON.stringify(items), BACKEND_CONFIG.cacheSeconds);
+  } catch (err) { /* payload too large to cache; ignore */ }
+  return items;
 }
 
 function getPageMeta_() {
@@ -72,11 +66,13 @@ function getPageMeta_() {
   };
 }
 
-function getItemsPage_(pageToken) {
+// Scans the whole folder (newest-first) and returns every audio item.
+// Each item gets a global episode number: newest = total count, oldest = 1.
+function getAllAudioItems_() {
   var folderId = getFolderId_();
   var out = [];
-  var nextToken = sanitizePageToken_(pageToken);
-  var maxItems = getConfiguredPageSize_();
+  var nextToken = '';
+  var maxItems = getConfiguredMaxItems_();
   var batchSize = getConfiguredDriveListBatchSize_();
 
   while (out.length < maxItems) {
@@ -97,11 +93,12 @@ function getItemsPage_(pageToken) {
     if (!nextToken) break;
   }
 
-  return {
-    items: out,
-    nextPageToken: nextToken,
-    hasMore: !!nextToken
-  };
+  var total = out.length;
+  for (var j = 0; j < total; j += 1) {
+    out[j].number = total - j;
+  }
+
+  return out;
 }
 
 function listDriveFilesPage_(folderId, pageToken, pageSize) {
@@ -130,7 +127,6 @@ function buildItemFromDriveFile_(f) {
     id: id,
     name: name,
     createdMs: created.getTime(),
-    createdStr: Utilities.formatDate(created, BACKEND_CONFIG.timezone, 'yyyy-MM-dd'),
     book: parseBook_(name),
     title: parseTitle_(name),
     number: null,
@@ -176,22 +172,16 @@ function isAllowedAudioFile_(lowerName) {
   return false;
 }
 
-function getConfiguredPageSize_() {
-  var n = Number(BACKEND_CONFIG.pageSize);
-  if (!isFinite(n) || n < 1) return 10;
+function getConfiguredMaxItems_() {
+  var n = Number(BACKEND_CONFIG.maxItems);
+  if (!isFinite(n) || n < 1) return 2000;
   return Math.floor(n);
 }
 
 function getConfiguredDriveListBatchSize_() {
   var n = Number(BACKEND_CONFIG.driveListBatchSize);
-  if (!isFinite(n) || n < 1) return getConfiguredPageSize_();
+  if (!isFinite(n) || n < 1) return 100;
   return Math.floor(n);
-}
-
-function sanitizePageToken_(pageToken) {
-  var token = pageToken == null ? '' : String(pageToken);
-  if (token.length > 1024) throw new Error('Invalid Drive page token.');
-  return token;
 }
 
 function escapeDriveQueryLiteral_(value) {

@@ -369,7 +369,6 @@
 
   <script id="itemsData" type="application/json"><?!= itemsJson ?></script>
   <script id="pageMetaData" type="application/json"><?!= pageMetaJson ?></script>
-  <script id="pageStateData" type="application/json"><?!= pageStateJson ?></script>
   <script>
     (function () {
       var logs = [];
@@ -434,12 +433,14 @@
         defaultTrackTitle: 'Казка',
         debugTitle: 'Debug',
         debugHint: '(toggle in CONFIG)',
-        pagerNewer: 'Новіші',
-        pagerOlder: 'Старіші',
-        pagerLoading: 'Завантаження...',
-        pagerPage: 'Сторінка {current}',
-        pagerEnd: 'Кінець списку',
-        pagerLoadError: 'Не вдалося завантажити сторінку',
+        pagerPageOf: 'Стор. {current} / {total}',
+        pagerFirst: 'На початок',
+        pagerLast: 'У кінець',
+        pagerPrev: 'Назад',
+        pagerNext: 'Вперед',
+        pagerJumpBack: 'Назад на {step} стор.',
+        pagerJumpForward: 'Вперед на {step} стор.',
+        storiesCount: 'Усього: {count}',
         today: 'Сьогодні',
         yesterday: 'Учора',
         dayBeforeYesterday: 'Позавчора'
@@ -481,12 +482,14 @@
         defaultTrackTitle: 'Сказка',
         debugTitle: 'Debug',
         debugHint: '(toggle in CONFIG)',
-        pagerNewer: 'Новее',
-        pagerOlder: 'Старее',
-        pagerLoading: 'Загрузка...',
-        pagerPage: 'Страница {current}',
-        pagerEnd: 'Конец списка',
-        pagerLoadError: 'Не удалось загрузить страницу',
+        pagerPageOf: 'Стр. {current} / {total}',
+        pagerFirst: 'В начало',
+        pagerLast: 'В конец',
+        pagerPrev: 'Назад',
+        pagerNext: 'Вперёд',
+        pagerJumpBack: 'Назад на {step} стр.',
+        pagerJumpForward: 'Вперёд на {step} стр.',
+        storiesCount: 'Всего: {count}',
         today: 'Сегодня',
         yesterday: 'Вчера',
         dayBeforeYesterday: 'Позавчера'
@@ -528,12 +531,14 @@
         defaultTrackTitle: 'Story',
         debugTitle: 'Debug',
         debugHint: '(toggle in CONFIG)',
-        pagerNewer: 'Newer',
-        pagerOlder: 'Older',
-        pagerLoading: 'Loading...',
-        pagerPage: 'Page {current}',
-        pagerEnd: 'End of list',
-        pagerLoadError: 'Could not load page',
+        pagerPageOf: 'Page {current} / {total}',
+        pagerFirst: 'First',
+        pagerLast: 'Last',
+        pagerPrev: 'Previous',
+        pagerNext: 'Next',
+        pagerJumpBack: 'Back {step} pages',
+        pagerJumpForward: 'Forward {step} pages',
+        storiesCount: 'Total: {count}',
         today: 'Today',
         yesterday: 'Yesterday',
         dayBeforeYesterday: 'Day before yesterday'
@@ -553,6 +558,8 @@
       seekForwardSeconds: 30,
       showEpisodeNumber: true,
       episodeNumberMode: 'backendGlobal',
+      pageSize: 6,
+      pagerJumpStep: 5,
       debug: false,
       logToConsole: false
     };
@@ -596,32 +603,22 @@
         return {};
       }
     }
-    function parsePageStateFromDom() {
-      try {
-        var node = document.getElementById('pageStateData');
-        var raw = node ? node.textContent : '{}';
-        var parsed = JSON.parse(raw || '{}');
-        return parsed && typeof parsed === 'object' ? parsed : {};
-      } catch (e) {
-        console.error('Failed to parse pageStateJson', e);
-        return {};
-      }
-    }
-
     var ITEMS = parseItemsFromDom();
     var PAGE_META = parsePageMetaFromDom();
-    var PAGE_STATE = parsePageStateFromDom();
     var state = {
       flat: [],
-      pages: [ITEMS],
+      allItems: ITEMS,
       currentIndex: -1,
       currentPage: 1,
-      nextPageToken: safeText(PAGE_STATE.nextPageToken || ''),
-      hasMore: !!PAGE_STATE.hasMore,
-      loadingPage: false,
-      pageLoadError: false,
+      pageSize: getConfiguredPageSize(),
       lang: 'uk'
     };
+
+    function getConfiguredPageSize() {
+      var n = Number(CONFIG.pageSize);
+      if (!isFinite(n) || n < 1) return 6;
+      return Math.floor(n);
+    }
 
     function $(id) { return document.getElementById(id); }
     var audio = $('audio');
@@ -752,20 +749,32 @@
     }
     function safeText(s) { return s == null ? '' : String(s); }
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-    function getLoadedPageCount() {
-      return Math.max(1, state.pages.length);
+    function getTotalPages() {
+      return Math.max(1, Math.ceil(state.allItems.length / state.pageSize));
+    }
+    function clampPage(page) {
+      return clamp(page, 1, getTotalPages());
+    }
+    function getPageItems(page) {
+      var start = (clampPage(page) - 1) * state.pageSize;
+      return state.allItems.slice(start, start + state.pageSize);
     }
     function getCurrentItems() {
-      return state.pages[state.currentPage - 1] || [];
+      return getPageItems(state.currentPage);
     }
-    function hasLoadedOlderPage() {
-      return state.currentPage < state.pages.length;
+    function goToPage(page) {
+      var target = clampPage(page);
+      if (target === state.currentPage) return;
+      state.currentPage = target;
+      state.currentIndex = -1;
+      renderPageFromState();
+      scrollListIntoView();
     }
-    function canGoOlder() {
-      return !state.loadingPage && (hasLoadedOlderPage() || state.hasMore);
-    }
-    function clampLoadedPage(page) {
-      return clamp(page, 1, getLoadedPageCount());
+    function scrollListIntoView() {
+      try {
+        var top = listEl.getBoundingClientRect().top + window.pageYOffset - 12;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      } catch (e) {}
     }
     function storageKeyForTrack(track) {
       return track && (track.id ? 'pos:' + track.id : 'pos:' + track.url);
@@ -860,7 +869,9 @@
       pageSubtitle.textContent = t('pageSubtitle');
       pageSubtitle.hidden = !pageSubtitle.textContent;
       langLabelEl.textContent = t('langLabel');
-      feedTitle.textContent = t('latestStories');
+      var feedText = t('latestStories');
+      if (state.allItems.length) feedText += ' · ' + t('storiesCount', { count: state.allItems.length });
+      feedTitle.textContent = feedText;
       now.textContent = t('nowNothingSelected');
       btnPrev.textContent = t('buttonPrev');
       btnPrev.title = t('buttonPrevTitle');
@@ -955,87 +966,42 @@
     }
     function renderPagerInto(container) {
       container.textContent = '';
-      container.hidden = state.pages.length <= 1 && !state.hasMore && !state.loadingPage;
+      var totalPages = getTotalPages();
+      container.hidden = totalPages <= 1;
       if (container.hidden) return;
 
+      var current = state.currentPage;
+      var step = Math.max(1, Math.floor(Number(CONFIG.pagerJumpStep) || 5));
+      var atFirst = current <= 1;
+      var atLast = current >= totalPages;
       var frag = document.createDocumentFragment();
-      function addButton(label, disabled, onClick) {
+
+      function addButton(label, title, disabled, targetPage) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'pagerBtn';
         btn.textContent = label;
+        if (title) btn.title = title;
         btn.disabled = !!disabled;
-        if (!disabled && onClick) btn.addEventListener('click', onClick);
+        if (!disabled) {
+          btn.addEventListener('click', function () { goToPage(targetPage); });
+        }
         frag.appendChild(btn);
       }
 
-      addButton(t('pagerNewer'), state.loadingPage || state.currentPage <= 1, goNewer);
-      addButton(state.loadingPage ? t('pagerLoading') : t('pagerOlder'), !canGoOlder(), goOlder);
+      addButton('«', t('pagerFirst'), atFirst, 1);
+      addButton('‹‹', t('pagerJumpBack', { step: step }), atFirst, current - step);
+      addButton('‹', t('pagerPrev'), atFirst, current - 1);
+      frag.appendChild(makeEl('span', 'pageInfo', t('pagerPageOf', { current: current, total: totalPages })));
+      addButton('›', t('pagerNext'), atLast, current + 1);
+      addButton('››', t('pagerJumpForward', { step: step }), atLast, current + step);
+      addButton('»', t('pagerLast'), atLast, totalPages);
 
-      var info = t('pagerPage', { current: state.currentPage });
-      if (!state.hasMore && state.currentPage === state.pages.length) {
-        info += ' · ' + t('pagerEnd');
-      }
-      if (state.pageLoadError) {
-        info += ' · ' + t('pagerLoadError');
-      }
-      frag.appendChild(makeEl('span', 'pageInfo', info));
       container.appendChild(frag);
     }
     function renderPager() {
-      state.currentPage = clampLoadedPage(state.currentPage);
+      state.currentPage = clampPage(state.currentPage);
       renderPagerInto(pagerBottom);
-    }
-    function goNewer() {
-      if (state.loadingPage || state.currentPage <= 1) return;
-      state.pageLoadError = false;
-      state.currentPage = clampLoadedPage(state.currentPage - 1);
-      state.currentIndex = -1;
-      renderPageFromState();
-    }
-    function goOlder() {
-      if (!canGoOlder()) return;
-      if (hasLoadedOlderPage()) {
-        state.pageLoadError = false;
-        state.currentPage = clampLoadedPage(state.currentPage + 1);
-        state.currentIndex = -1;
-        renderPageFromState();
-        return;
-      }
-      loadOlderPage();
-    }
-    function loadOlderPage() {
-      if (!state.hasMore || state.loadingPage) return;
-      if (!window.google || !google.script || !google.script.run) {
-        state.pageLoadError = true;
-        log('google.script.run is unavailable');
-        renderPager();
-        return;
-      }
-
-      state.loadingPage = true;
-      state.pageLoadError = false;
-      renderPager();
-      google.script.run
-        .withSuccessHandler(function (page) {
-          page = page || {};
-          var items = Object.prototype.toString.call(page.items) === '[object Array]' ? page.items : [];
-          state.pages.push(items);
-          state.nextPageToken = safeText(page.nextPageToken || '');
-          state.hasMore = !!page.hasMore;
-          state.loadingPage = false;
-          state.pageLoadError = false;
-          state.currentPage = state.pages.length;
-          state.currentIndex = -1;
-          renderPageFromState();
-        })
-        .withFailureHandler(function (err) {
-          state.loadingPage = false;
-          state.pageLoadError = true;
-          log('loadOlderPage failed', err && err.message ? err.message : err);
-          renderPager();
-        })
-        .getItemsPage(state.nextPageToken);
     }
     function renderCurrentPage() {
       listEl.textContent = '';
@@ -1081,7 +1047,7 @@
         var it = items[i];
         var displayNumber = null;
         if (CONFIG.episodeNumberMode === 'backendGlobal') displayNumber = it.number;
-        var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? ('#' + displayNumber + '. ') : '';
+        var numberPart = CONFIG.showEpisodeNumber && displayNumber != null ? (displayNumber + '. ') : '';
         var title = safeText(it.title || it.name || t('defaultTrackTitle'));
         var track = {};
         for (var k in it) {
@@ -1122,7 +1088,7 @@
       }
 
       player.hidden = !isExperimentalAudioMode();
-      state.currentPage = clampLoadedPage(state.currentPage);
+      state.currentPage = clampPage(state.currentPage);
       buildFlatTracks(getCurrentItems());
       renderPager();
       renderCurrentPage();

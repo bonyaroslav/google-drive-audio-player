@@ -27,8 +27,8 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
   - Language preference persisted in cookies and `localStorage` with Ukrainian as the default on fresh clients
   - Distinct book separators and per-card book labels parsed from the filename prefix before the first `.`
   - Highlighted relative localized dates (`Today` / `Yesterday` / compact date)
-  - Server-backed older/newer pagination with 10 items per page
-  - Single compact bottom pager that can continue to the end of the Drive folder
+  - Global episode numbers (`N. Title`): newest = total count, oldest = `1`, with the total shown in the feed heading
+  - Client-side pagination, 6 items per page, with a compact bottom pager: first / jump ±5 pages / prev / `Page X / Y` / next / last
   - Hard-coded low-light dark UI for nighttime phone use
   - Optional experimental HTML5 `<audio>` mode kept behind frontend config
   - Configurable page title/description metadata and optional favicon support
@@ -36,8 +36,8 @@ A small **Google-only** web app that turns a Drive folder into a focused audio p
 ## Icon note
 - Apps Script `HtmlOutput.setFaviconUrl()` should use a browser-supported favicon image type such as PNG or ICO.
 - SVG URLs should not be used here; keep `BACKEND_CONFIG.faviconUrl` empty until you have a supported public HTTPS PNG/ICO asset.
-- Shows newest files first; exact global episode numbering is skipped in server-paged mode
-- Loads the newest 10 files first and fetches older pages on demand
+- Shows newest files first with exact global episode numbers (newest = total count)
+- Loads the full folder once and paginates 6 per page in the browser
 
 ## Architecture (high level)
 - **Storage:** Google Drive folder contains audio files
@@ -64,10 +64,9 @@ Each audio item looks like:
   "id": "DriveFileId",
   "name": "Book. Chapter 1-3.mp3",
   "createdMs": 1700000000000,
-  "createdStr": "2026-02-18 21:30",
   "book": "Book",
   "title": "Chapter 1-3",
-  "number": null,
+  "number": 170,
   "url": "https://drive.google.com/uc?export=download&id=DriveFileId",
   "viewUrl": "https://drive.google.com/file/d/DriveFileId/view"
 }

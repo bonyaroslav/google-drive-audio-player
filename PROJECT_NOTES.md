@@ -17,35 +17,36 @@ Official docs:
 ---
 
 ## 2) Data Contract (itemsJson)
-UI expects an array of items with at least:
+`itemsJson` is the **full** list of audio items (newest-first), injected at page load. UI expects an array of items with at least:
 - `id` (Drive file id)
 - `name` (filename)
 - `createdMs` (number)
-- `createdStr` (string for display)
 - `book` (string)
 - `title` (string)
-- `number` (int/null; optional and not required in server-paged mode)
+- `number` (int; global episode number — newest = total count, oldest = `1`)
 - `url` (direct play/download URL, usually `uc?export=download&id=...`)
 - `viewUrl` (Drive file view URL fallback)
 
 Notes:
-- Newest-first display is by `createdMs` desc.
-- Episode numbering is optional; server-paged mode does not compute exact global numbers.
-- `createdStr` is rendered as date only (`yyyy-MM-dd`).
+- Newest-first display is by `createdMs` desc (Drive `orderBy: createdTime desc`).
+- `number` is computed backend-side as `total - index` across the whole folder.
+- The frontend paginates this array client-side (`CONFIG.pageSize`, default `6`).
+- Display date is derived client-side from `createdMs` (no `createdStr` is injected).
 
 ---
 
 ## 3) Frontend behavior (Index.html)
 - Central `CONFIG` controls:
   - playback mode toggle: `driveOnly` by default, `experimentalHtmlAudio` optional
-  - page size comes from backend `BACKEND_CONFIG.pageSize` (`10` by default)
-  - server-backed older/newer pagination with a single compact bottom pager control
+  - page size is a frontend setting `CONFIG.pageSize` (`6` by default)
+  - client-side pagination over the full injected list, with a single compact bottom pager: first (`«`), jump back N pages (`‹‹`, `CONFIG.pagerJumpStep`, default `5`), prev (`‹`), `Page X / Y` indicator, next (`›`), jump forward N pages (`››`), last (`»`)
+  - the feed heading also shows the total recording count
   - hard-coded low-light dark theme; no user-facing theme switcher
   - autoplay-on-select (best-effort), auto-next on ended when experimental audio is enabled
   - seek step buttons (e.g., -10s/+30s) in experimental audio mode
   - UI language options (`uk`/`ru`/`en`) with Ukrainian default on fresh clients; selected language persisted in versioned cookies and `localStorage`
   - optional resume position via `localStorage`
-  - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`)
+  - numbering mode: `episodeNumberMode` (`backendGlobal` by default; also `perBook`/`none`); shown as `N. Title` (newest = total count)
   - newest-first flat list layout with book separators, per-card book labels, highlighted date chips, large card actions, and iPhone-first sizing
   - list actions: primary button opens Google Drive in a new tab/window; explicit "Select record" buttons are removed
   - parsed `book` name (filename prefix before the first `.`) is shown as a large separator before a changed-prefix item and as a small label at the start of each card; it does not reorder the newest-first list
@@ -66,18 +67,16 @@ Notes:
 
 ## 4) Backend behavior (Code.gs)
 - Reads files from Drive folder; filters `.mp3/.ogg/.m4a`.
-- Backend configuration is centralized in `BACKEND_CONFIG` (`pageSize`, `driveListBatchSize`, `allowedExtensions`, `cacheSeconds`, timezone, defaults).
+- Backend configuration is centralized in `BACKEND_CONFIG` (`driveListBatchSize`, `maxItems`, `allowedExtensions`, `cacheSeconds`, timezone, defaults).
 - Folder source: Script Property `FOLDER_ID` (required). `Code.gs` throws a clear error if missing.
-- Uses Advanced Drive service (`Drive`, API v3) for ordered, token-based Drive listing.
-- Drive list requests are capped to the remaining UI page capacity so no unconsumed API results are skipped.
+- Uses Advanced Drive service (`Drive`, API v3) for ordered Drive listing.
+- `getAllAudioItems_()` scans the whole folder newest-first (looping `nextPageToken` until exhausted or `maxItems`), then assigns `number = total - index` so the newest item carries the total count and the oldest is `1`.
 - Parses book/title from filename pattern:
   - split by the first `.` in the base filename. Text before the first dot is `book`; text after it is `title`. If the dot is absent, item falls back to default book and full base filename as title.
 - Injects JSON into template using `safeJson_()` (escape for `<script>` context, including `<`, `>`, `&`, `U+2028`, `U+2029`).
-- Frontend data path: parse `<script type="application/json" id="itemsData">`.
-- Paging data path: initial `pageStateJson` carries `nextPageToken`; older pages are fetched with `google.script.run.getItemsPage(pageToken)`.
+- Frontend data path: parse `<script type="application/json" id="itemsData">` (full list; no lazy older/newer fetch).
 - Optional caching:
-  - `CacheService` with small TTL (e.g., 120s) to reduce Drive calls.
-- Initial backend payload is one page (`10` by default); older pages are loaded on demand until Drive returns no next token.
+  - `CacheService` with small TTL (e.g., 120s) to reduce Drive calls. Cache values are capped at ~100KB; if the full list exceeds that, `put()` is skipped and the list is recomputed each load (still functional). `createdStr` is intentionally not injected to keep the payload small.
 
 ---
 
@@ -85,8 +84,8 @@ Notes:
 - **Autoplay restrictions:** mobile browsers may block autoplay until a user presses Play once.
 - **Playback/seek reliability:** custom HTML5 `<audio>` playback from Drive download-style URLs is not a documented/supported streaming contract; reliability depends on how Drive serves media + browser behavior. Drive's own viewer is the safer browser playback path. MP3 is typically most compatible.
 - **Privacy model:** relies on Drive sharing + Web App access. “Anyone with link” is unlisted public.
-- **Scale:** huge folders can slow listing; keep “active” folder limited (e.g., last 100–300 files) and archive elsewhere.
-- **Paging trade-off:** token-based Drive paging avoids the old 100-file ceiling, but exact global episode numbers are not available without scanning the whole folder.
+- **Scale:** the backend loads the whole folder on each cold cache and injects it inline. This is fine at the intended scale (last ~100–300 files); keep the “active” folder limited and archive elsewhere. `BACKEND_CONFIG.maxItems` caps the scan as a safety valve.
+- **Paging trade-off:** client-side pagination gives exact global numbers and instant `Page X / Y` navigation (first/last/±5/±1), at the cost of a full-folder scan + larger initial payload. The compact pager has no direct numbered-page buttons; reaching a distant page uses ±5/±1 steps (acceptable since paging is rare).
 
 ---
 
@@ -201,6 +200,18 @@ Android focus:
 **Why:** Exact "oldest = #1" numbering requires scanning the full folder, which conflicts with lazy paging.
 **Constraints:** Do not reintroduce full-folder scans just to show episode numbers.
 **Trade-off:** The list relies on title, book, and date for orientation.
+**Superseded by:** "Client-side full pagination" and "Global episode numbering" (2026-06-14, below).
+
+### 2026-06-14 — Client-side full pagination (supersedes server-backed older/newer paging)
+**Decision:** Load the entire folder once in `doGet`, inject the full `itemsJson`, and paginate client-side at `CONFIG.pageSize` (6/page) with a compact pager: first / jump −N / prev / `Page X / Y` / next / jump +N / last.
+**Why:** The user needs exact `Page X / Y`, jumps of several pages, and direct first/last navigation. At the intended scale (~100–300 files) a full load is cheap and makes rare paging instant.
+**Constraints:** Cap the scan with `BACKEND_CONFIG.maxItems`; keep the cached payload under ~100KB (drop `createdStr`).
+**Trade-off:** Larger initial payload and a full-folder scan on cold cache; the pager has no direct numbered-page buttons (distant pages reached via ±N/±1).
+
+### 2026-06-14 — Global episode numbering (supersedes "no exact global numbering")
+**Decision:** Compute `number = total - index` over the whole newest-first list so the newest item shows the total count and the oldest shows `1`; render as `N. Title`. The feed heading also shows the total count.
+**Why:** The user wants a running number per recording to see how many exist and to locate one by number.
+**Trade-off:** Requires the full-folder scan adopted above; numbers shift by one whenever a new file is added (expected behavior).
 
 ---
 
@@ -214,9 +225,9 @@ Android focus:
    - Keep user-facing errors plain.
    - Add debug-only logging for Drive page tokens, page sizes, and load failures when `?debug=1` is enabled.
 
-3) **Review numbering expectations**
-   - Current server-paged mode does not show exact global episode numbers because that requires scanning the full folder.
-   - If numbering becomes important again, add a separate explicit numbering strategy instead of reintroducing full-history loading by accident.
+3) **Watch payload/scan size as the folder grows**
+   - Global numbering + client-side paging rely on loading the whole folder. Around the ~100KB cache limit the list stops being cached (recomputed each load).
+   - If the folder grows large, revisit: archive old files, raise the cache strategy, or move to a hybrid (inject count + lazy-load remainder).
 
 4) **Validate target devices**
-   - Test the dark theme and older/newer paging on the actual iPhone/Safari and Chrome targets before changing spacing or contrast further.
+   - Test the dark theme and the compact pager (first/last/±5/±1) on the actual iPhone/Safari and Chrome targets before changing spacing or contrast further.
